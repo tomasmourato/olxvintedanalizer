@@ -11,7 +11,7 @@ export default function App() {
   return (
     <main className="min-h-dvh bg-slate-900 p-6 text-slate-100">
       <h1 className="text-2xl font-bold">Deal Hunter</h1>
-      <p className="mt-2 text-slate-400">Em construção. Supabase: {session}.</p>
+      <p className="mt-2 text-slate-400">Em construção (F1 concluída). Supabase: {session}.</p>
     </main>
   );
 }
