@@ -3,6 +3,11 @@
 A PWA plus a home worker that polls OLX.pt and Vinted.pt for PC parts and sends web-push alerts for great deals. Built for a friend who resells PCs.
 
 - Plan: `C:\Users\mrttm\.claude\plans\contexto-um-amigo-est-zazzy-clock.md` (phases F0–F7). F0 findings: `docs/F0-validacao.md`.
-- Stack: `apps/worker` (Node 24 + TS, Playwright/Edge for OLX, plain fetch for Vinted, runs on the friend's home PC via pm2), `apps/web` (Vite + React PWA on Cloudflare Pages), `packages/shared`, `supabase/` (Postgres, RLS, pg_cron). AI deal scoring: Gemini 3.8 Flash (free tier) with a rules fallback.
+- Stack: `apps/worker` (Node 24 + TS, Playwright/Edge for OLX, plain fetch for Vinted, runs on the friend's home PC via pm2), `apps/web` (Vite + React + Tailwind PWA on Cloudflare Pages), `packages/shared` (DB types + shared logic, consumed as TS source), `supabase/` (Postgres, RLS, pg_cron). AI deal scoring: Gemini 3.8 Flash (free tier) with a rules fallback.
+- Repo: github.com/tomasmourato/olxvintedanalizer (private). CI: `.github/workflows/ci.yml` runs typecheck, test and web build.
+- Supabase project `pcdealhunter`, ref `suldkcbhpmvhpxksrlot` (linked). Schema: `supabase/migrations/`. Public sign-ups are off.
+- Secrets live only in gitignored files: root `.env` (`SUPABASE_DB_PASSWORD` for the CLI) and `apps/worker/.env` (URL + secret key). The web publishable key is committed in `apps/web/src/lib/supabase.ts` (public by design).
+- Commands: `npm run typecheck`, `npm test`, `npm run build:web`, `npm run db:types` (regenerate `packages/shared/src/database.types.ts` after a migration), `npx supabase db push` (needs `SUPABASE_DB_PASSWORD`).
+- Careful: `supabase config push` applies without asking and pushes every auth setting in `supabase/config.toml`.
 - User rules: never create accounts; stop and ask for any login/key. The user is on Claude Pro, so keep sessions lean (one phase per session, no subagents).
 - UI language: Portuguese (pt-PT).
