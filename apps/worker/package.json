@@ -7,10 +7,14 @@
     "spike:olx": "tsx spikes/olx.ts",
     "spike:vinted": "tsx spikes/vinted.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "start": "tsx src/main.ts",
+    "once": "tsx src/main.ts --once",
+    "dry": "tsx src/main.ts --once --dry-run"
   },
   "dependencies": {
     "@dh/shared": "*",
+    "@supabase/supabase-js": "^2.117.0",
     "playwright": "^1.63.0"
   },
   "devDependencies": {

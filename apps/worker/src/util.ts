@@ -1,0 +1,28 @@
+export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, ms)));
+
+/** `base` ± `spread` (fraction), so requests never fall into a fixed rhythm. */
+export const jitter = (base: number, spread = 0.2) => base * (1 - spread + Math.random() * 2 * spread);
+
+/** "HH:MM" in the given time zone. */
+export function clockIn(timeZone: string, now = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+}
+
+/** Inside [from, to) in local time; `from`/`to` are "HH:MM" or "HH:MM:SS". Handles windows past midnight. */
+export function isActive(from: string, to: string, timeZone: string, now = new Date()): boolean {
+  const t = clockIn(timeZone, now);
+  const f = from.slice(0, 5);
+  const e = to.slice(0, 5);
+  return f <= e ? t >= f && t < e : t >= f || t < e;
+}
+
+export function log(...args: unknown[]): void {
+  console.log(new Date().toISOString().slice(11, 19), ...args);
+}
+
+export function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** Process-wide switches set from the command line. */
+export const flags = { dryRun: false };

@@ -1,0 +1,167 @@
+# Plano — OLX + Vinted Deal Hunter (PWA com notificações push)
+
+## Contexto
+
+Um amigo monta e revende PCs e compra componentes no OLX e na Vinted. Quer uma app que:
+- pesquise várias vezes ao dia, das 6h às 22h;
+- mande push **quase instantâneo** para o telemóvel quando aparecer um deal imperdível;
+- guarde um log de tudo o que as pesquisas encontram, ordenado por qualidade do deal e por categoria;
+- guarde um log das notificações enviadas;
+- deixe editar dentro da app as palavras-chave, as categorias e o contexto usado para avaliar os deals.
+
+Prioridades: no OLX conta mais o número de palavras-chave do que o intervalo; na Vinted conta mais a velocidade do que o número de categorias.
+
+Decisões tomadas contigo:
+- **Frontend** em **Cloudflare Pages**, grátis e com uso comercial permitido. O plano Hobby da Vercel proíbe uso comercial e as tarefas agendadas só correm 1×/dia.
+- **Avaliação por IA** com **Gemini 3.8 Flash, plano grátis**. As regras filtram primeiro e só os candidatos vão à IA.
+- **Custo Claude**: usas só o Pro, ao ritmo dos limites.
+
+## O que testei antes de planear (a partir da tua ligação NOS, IP residencial, a 22/09/2026)
+
+| Teste | Resultado |
+|---|---|
+| OLX `GET /api/v1/offers/` com curl ou Node `fetch` | **403** (bloqueio CloudFront por "impressão digital" do cliente, não por IP) |
+| OLX, a mesma API aberta num browser real | **200**, JSON completo (título, descrição, preço, `created_time`, `pushup_time`) |
+| Vinted `/api/v2/catalog/items` (API antiga) | **404** até no browser. **A API foi retirada** |
+| Vinted `/catalog?...&order=newest_first` com Node `fetch` | **200** em ~1,2 s, com 75–87 anúncios embutidos no HTML (dados `productItem`). Pesa ~7 MB, mas só ~750 KB comprimidos |
+| Categorias Vinted PT | 3564 Computadores e acessórios, 3581 Computadores de secretária, 3602 Placas gráficas, 3580 Portáteis |
+| Observação | A Vinted PT mostra anúncios de outros países da UE (IT/FR/NL). O OLX ordena por "mais recente" mas inclui anúncios antigos que foram "subidos" |
+
+## Onde correr as pesquisas: casa ou data center
+
+| | **PC em casa (escolhido)** | Vercel | VPS em data center |
+|---|---|---|---|
+| IP | Residencial: Vinted e OLX **testados e a funcionar** | AWS: a Vinted (DataDome) tende a bloquear e o OLX exige um browser real | Igual à Vercel |
+| Agendamento | Contínuo, com qualquer intervalo | Hobby: 1×/dia (inviável). Pro: 1/min, a 20 $/mês | Contínuo |
+| Tráfego (~3–4 GB/dia só da Vinted) | Grátis na fibra | Proxies residenciais a 3–8 $/GB = **centenas de €/mês** | Igual à Vercel |
+| Custo mensal | **Luz: ~1–3 €** (máquina de 15–30 W, 16 h/dia) | 20 $ + proxies | 4–5 € + proxies |
+| Riscos | Máquina desligada ou sem internet; o IP de casa pode ser limitado | Bloqueios; custo | Bloqueios; custo |
+
+**Conclusão:** o worker corre numa máquina em casa do amigo (Windows ou Linux; de preferência um PC de peças sobrantes, com baixo consumo e sempre ligado). A cloud só guarda dados e serve a PWA.
+
+## Arquitetura
+
+```
+PC em casa do amigo (IP residencial)                  Cloud (grátis)
+┌───────────────────────────────────────┐    ┌──────────────────────────────┐
+│ worker Node 24 + TypeScript (pm2)     │    │ Supabase: Postgres + Auth +  │
+│  Agendador 6h–22h (Europe/Lisbon)     │◄──►│ Realtime + pg_cron + Edge Fn │
+│  Fonte Vinted: fetch HTML → parse     │    └──────────────▲───────────────┘
+│  Fonte OLX: Playwright Chromium       │                   │ supabase-js
+│    persistente → fetch dentro da      │    ┌──────────────┴───────────────┐
+│    página (/api/v1/offers)            │    │ Cloudflare Pages: PWA        │
+│  normalizar → dedup → match → score   │    │ Vite + React + TS + Tailwind │
+│  → Gemini (timeout 4 s) → web-push ───┼──► │ Service worker (push)        │
+│  heartbeat + log de cada pesquisa     │    └──────────────────────────────┘
+└───────────────────────────────────────┘          📱 push via FCM / APNs
+```
+
+### Ideia central: firehose por categoria + matching local
+Em vez de 1 pedido por palavra-chave, o worker lê os anúncios **mais recentes de cada categoria relevante** e aplica **localmente todas as palavras-chave**. Assim, o número de pedidos deixa de depender do número de palavras-chave, o que responde às duas prioridades:
+- **Vinted (velocidade):** 3–6 categorias (placas gráficas, secretária, portáteis, componentes…) a cada **~60 s** com variação aleatória: ~5 pedidos/min. Palavras-chave ilimitadas sem custo extra. Pesquisas por termo só para o que costuma aparecer fora dessas categorias, em rotação.
+- **OLX (quantidade):** categorias Tecnologia → Computadores/Componentes a cada **~5 min**, paginando até encontrar IDs já vistos. Além disso, pesquisas por termo em todo o OLX em rotação (ex.: 100 termos em 30 min ≈ 3 pedidos/min). Resultado: palavras-chave ilimitadas, verificadas de 5 em 5 min dentro das categorias.
+- Os intervalos finais saem das medições da Fase 0 (anúncios novos por minuto e se ciclos seguidos se sobrepõem, isto é, se não há buracos).
+- Proteção contra bloqueio: 1 pedido de cada vez por fonte, variação aleatória nos intervalos, backoff exponencial em 403/429, e pausa automática da fonte durante 15–30 min após bloqueios repetidos (visível na app).
+
+### Avaliação de deals
+1. **Regras** (por pesquisa): termos obrigatórios e excluídos (ex.: "avariado", "peças", "procuro", "troco", "caixa vazia"), preço mín./máx., **preço-alvo**, fonte.
+2. **Referência automática:** mediana do preço dos anúncios dessa pesquisa nos últimos 30 dias, para calcular o desconto em %.
+3. **Pontuação por regras (0–100)** a partir do preço-alvo e do desconto face à mediana.
+4. **Só os candidatos** (pontuação ≥ limiar) vão ao **Gemini 3.8 Flash**, com o contexto global + o contexto da pesquisa + o anúncio. Devolve um JSON estruturado `{score, tier, reason, red_flags}`.
+5. **Níveis:** Imperdível (dispara push), Bom, Normal. Se o Gemini falhar ou passar dos 4 s, **o push sai na mesma** com base nas regras, marcado "(sem IA)".
+6. **Descidas de preço** num anúncio já visto voltam a ser avaliadas. Anúncios do OLX que foram apenas "subidos" (`created_time` antigo) não notificam.
+
+### Notificações (objetivo: < 5 s após a deteção)
+- Web Push com VAPID enviado **diretamente pelo worker** (lib `web-push`), sem servidor intermédio.
+- Service worker da PWA mostra a notificação com foto, preço, desconto e motivo. Tocar abre o anúncio.
+- **iPhone:** o push só funciona com a PWA instalada no ecrã inicial (iOS 16.4+). No Android funciona direto no Chrome.
+- **Watchdog:** a cada 5 min, o `pg_cron` do Supabase verifica o heartbeat do worker. Se passarem 10 min sem sinal dentro do horário ativo, uma Edge Function envia o push "Worker offline".
+
+## Modelo de dados (Supabase, `supabase/migrations/`)
+- `watches`: nome, fonte (olx/vinted/ambas), termo ou categoria, ids de categoria, termos obrigatórios/excluídos, preço mín./máx./alvo, contexto em texto livre, ativa.
+- `settings` (linha única): contexto global, horário ativo, intervalos por fonte, limiar de notificação, IA ligada/desligada.
+- `listings`: `unique(source, external_id)`, título, preço, último preço, URL, foto, localização, vendedor, `first_seen_at`.
+- `matches`: anúncio × pesquisa, pontuação das regras, pontuação da IA, motivo, nível, desconto, notificado.
+- `notifications`: log do que foi enviado (quando, para onde, estado).
+- `runs`: **log de cada pesquisa** (fonte, âmbito, estado HTTP, duração, anúncios lidos/novos/matches, erro).
+- `worker_status`: heartbeat, versão, fonte em pausa até, último erro.
+- `push_subscriptions`: endpoint e chaves de cada dispositivo.
+- **RLS:** só o utilizador autenticado lê e escreve. O worker usa a `service_role` key, que fica apenas no `.env` do PC do amigo.
+- **Retenção** (`pg_cron` diário) para caber nos 500 MB grátis: `runs` durante 14 dias; anúncios sem match durante 30 dias; matches e notificações ficam para sempre.
+
+## Estrutura do repositório (monorepo npm workspaces, repositório GitHub **privado**)
+```
+apps/web/            Vite + React + TS + Tailwind + vite-plugin-pwa (injectManifest, src/sw.ts)
+apps/worker/src/     sources/{olx,vinted}.ts, pipeline/{normalize,match,score,ai,notify}.ts,
+                     scheduler.ts, heartbeat.ts, config.ts   (+ fixtures/ e testes vitest)
+packages/shared/     tipos (Listing, Watch, Match) e funções de matching/pontuação partilhadas
+supabase/            migrations/*.sql, functions/worker-watchdog/
+.github/workflows/   ci.yml (typecheck + testes) e worker-deploy.yml (runner self-hosted no PC do amigo)
+docs/INSTALL-worker.md
+CLAUDE.md            resumo do projeto, para as sessões seguintes arrancarem com pouco contexto
+```
+**Push = redeploy:** o Cloudflare Pages faz rebuild da PWA a cada push. O runner self-hosted do GitHub Actions no PC do amigo faz `git pull`, `npm ci`, build e `pm2 reload` do worker quando `apps/worker` muda.
+
+## Ecrãs da PWA (mobile-first, atualização em tempo real via Supabase Realtime)
+1. **Deals:** agrupados por nível (Imperdíveis, Bons, Resto) e por categoria. Filtros por fonte e pesquisa; ordenação por pontuação, desconto ou data. Cartão com foto, preço, mediana, desconto, motivo da IA e link.
+2. **Logs de pesquisa:** tabela de `runs` e estado do worker (online/offline, fonte em pausa, último erro).
+3. **Notificações:** histórico do que foi enviado.
+4. **Pesquisas:** criar, editar, ativar e desativar palavras-chave e categorias, com o contexto e os preços de cada uma.
+5. **Definições:** contexto global, horário, intervalos, limiar, ativar push, botão "enviar push de teste" e instruções de instalação no iPhone.
+
+## Fases (uma sessão Claude por fase, com `/compact` entre fases e sem subagentes, para poupar o Pro)
+- **F0 — Validação técnica:** OLX via Playwright com fetch dentro da página; parser do HTML da Vinted; ids das categorias OLX; filtro de país na Vinted; medir anúncios novos por minuto, sobreposição entre ciclos e o ritmo a partir do qual há bloqueio (subida gradual). Guardar fixtures para os testes. **Ponto de decisão:** se alguma fonte bloquear, rever antes de continuar.
+- **F1 — Infraestrutura:** monorepo, repo GitHub privado, migrations + RLS no Supabase, ligação ao Cloudflare Pages, CI.
+- **F2 — Worker:** fontes, normalização, dedup, log de pesquisas, heartbeat, config lida da BD (e atualizada via Realtime), backoff e pausa automática.
+- **F3 — Avaliação:** regras, mediana, Gemini com timeout/fallback e saída JSON estruturada, níveis.
+- **F4 — Push + PWA:** VAPID, service worker, subscrição, log de notificações, push de teste, watchdog.
+- **F5 — Frontend:** os 5 ecrãs.
+- **F6 — Instalação no PC do amigo:** Node, pm2 com arranque automático, energia sem suspensão, runner self-hosted, `.env`, teste ponta a ponta com o telemóvel dele.
+- **F7 — Afinação** (1–2 semanas de uso real): limiares, exclusões, intervalos.
+
+## Quando vou parar e pedir-te ajuda (nunca crio contas)
+1. **GitHub:** confirmar o `gh auth status`. Se não houver sessão, fazes `gh auth login`.
+2. **Supabase:** crias o projeto e dás-me o URL, a `anon key` e a `service_role key`, além de fazeres login no Supabase CLI. **Crias tu o utilizador do amigo** no Auth (eu desativo os registos públicos).
+3. **Cloudflare:** fazes login e ligas o repositório ao Pages (autorização OAuth). Eu indico o comando de build, a pasta de output e as variáveis.
+4. **Gemini:** tu ou o amigo criam a API key no Google AI Studio e confirmam lá os limites do plano grátis.
+5. **PC do amigo:** acesso físico ou remoto para instalar. Registo do runner (o token gero-o eu via `gh`).
+6. **Telemóvel do amigo:** instalar a PWA e aceitar as notificações.
+
+## Verificação
+- **Testes unitários (vitest):** parsers OLX e Vinted com fixtures reais, matching, pontuação, fallback da IA.
+- `worker --once --dry-run`: um ciclo completo que imprime os matches sem enviar push.
+- **Teste ponta a ponta:** uma pesquisa com um termo comum e preço-alvo alto tem de aparecer em Deals no ciclo seguinte. Medir `first_seen_at` → `sent_at` (objetivo < 5 s) e mostrar a latência no log.
+- **PWA:** verificação de instalabilidade no Lighthouse; instalar em Android e iPhone; receber push com a app fechada.
+- **Deploy automático:** um push trivial redeploya a PWA (Cloudflare) e faz reload do worker (runner).
+- **Watchdog:** parar o worker tem de gerar o push "Worker offline" em ≤ 10 min.
+- Ver o site publicado no browser integrado.
+
+## Riscos
+- O OLX e a Vinted podem mudar o HTML ou a API (a Vinted já retirou a API antiga). Os parsers ficam isolados e cobertos por testes com fixtures, e um erro de parse aparece no log.
+- Os Termos de Uso do OLX e da Vinted não autorizam recolha automática. O ritmo fica baixo e o uso é pessoal, mas se houver bloqueio **é o IP de casa do amigo que fica bloqueado**, afetando também o uso normal que ele faz desses sites. Mitigação: pausas automáticas e reiniciar o router (IP dinâmico).
+- O plano grátis do Gemini usa os pedidos para treino (anúncios públicos + o texto de contexto). Mudar para o pago é só trocar a chave.
+
+## Custos mensais para o amigo
+Luz ~1–3 €. GitHub (repo privado), Supabase Free, Cloudflare Pages e Gemini no plano grátis: **0 €**. **Total ≈ 1–3 €/mês.**
+
+---
+
+## 💶 Preço justo a cobrar (sem lucro, sem prejuízo)
+
+**Estimativa do máximo de tokens (Claude Opus 5.5, a sessões com cache):**
+
+| Cenário | Chamadas ao modelo | Leituras de cache | Escritas de cache | Output | Equivalente à API |
+|---|---|---|---|---|---|
+| Esperado | ~1 400 | ~91 M | ~5,6 M | ~1,7 M | **~100 $** |
+| **Máximo** | ~2 200 | ~190 M | ~11 M | ~3,3 M | **~190 $ (~165 €)** |
+
+Tarifas usadas: 0,20 $/M para leitura de cache, 8 $/M para escrita de cache (TTL de 1 h) e 20 $/M para output.
+
+**Referência medida:** esta sessão de planeamento (~30 chamadas, ≈ 2–2,5 $ em equivalente à API) gastou **12 % de uma janela de 5 h do teu Pro**. O cenário máximo equivale assim a ~10 janelas cheias; distribuído pelo limite semanal, dá **~3–5 semanas**.
+
+**Como vais usar só o Pro, o custo real para ti não são os tokens.** É o Pro ficar ocupado com este projeto durante ~1 a 1,5 meses. Pro ≈ 18 € + IVA ≈ **22 €/mês** (confirma na tua fatura). No cenário máximo: 1,5 × 22 € ≈ 33 €.
+
+### ➜ Preço a cobrar: **35 €** (pagamento único)
+
+- **Se** a meio tiveres de ativar o uso extra para acabar mais depressa, isso paga-se ao token. Nesse caso o teto é ~165 € + IVA, menos o que já estiver coberto pelo Pro. Combina isto com ele à partida.
+- Os custos mensais de funcionamento (≈ 1–3 €) são pagos diretamente pelo amigo e não entram nos 35 €.

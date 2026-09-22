@@ -24,3 +24,13 @@ console.log("vinted fixture KB", Math.round(sample.length / 1024));
 // OLX: API JSON as-is.
 copyFileSync(out("olx-rtx_3060.json"), fx("olx-offers.json"));
 console.log("olx fixture copied");
+
+// Vinted item page: keep only the description and breadcrumbs blocks the parser reads.
+import { flight } from "../src/sources/vinted.js";
+const item = flight(readFileSync(out("vinted-item.html"), "utf8"));
+const d = item.indexOf('"description":');
+const b = item.indexOf('"breadcrumbs":[');
+const bEnd = item.indexOf('"item_id"', b);
+const itemSample = `{${item.slice(d, item.indexOf('",', d + 15) + 1)}}\n{"data":{${item.slice(b, item.indexOf("}", bEnd) + 1)}}`;
+writeFileSync(fx("vinted-item.html"), `<html><body><script>self.__next_f.push([1,${JSON.stringify(`1b:${itemSample}\n`)}])</script></body></html>`);
+console.log("vinted item fixture KB", Math.round(itemSample.length / 1024));
