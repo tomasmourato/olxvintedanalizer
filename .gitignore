@@ -9,3 +9,4 @@ apps/worker/spikes/out/
 .DS_Store
 supabase/.temp/
 supabase/.branches/
+PLAN.txt
