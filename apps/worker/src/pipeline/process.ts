@@ -1,19 +1,21 @@
-// New/changed listings → match against watches → (Vinted) enrich → evaluate → matches table.
-// F4 sends the push where this logs "PUSH".
-import type { Insert, Source, Update, Watch } from "@dh/shared";
+// New/changed listings → match against watches → (Vinted) enrich → evaluate → matches table → push.
+import type { Insert, PushPayload, Source, Update, Watch } from "@dh/shared";
 import { getSettings, getWatches } from "../config.js";
 import { db } from "../db.js";
 import { BlockedError, type ScrapedListing } from "../sources/types.js";
 import { itemDetails, sellerCountry, type Enrichment } from "../sources/vinted.js";
+import { sendPush } from "../push.js";
 import { logRun } from "../status.js";
 import { errorText, flags, log } from "../util.js";
 import { evaluate } from "./evaluate.js";
 import { matchWatches } from "./match.js";
+import { dealPayload } from "./payload.js";
 import { storeBatch, updateListing, type PriceDrop, type Stored } from "./store.js";
 
 export type BatchResult = { fresh: number; matches: number };
 
 export async function processBatch(source: Source, items: ScrapedListing[], silent: boolean): Promise<BatchResult> {
+  const detectedAt = Date.now();
   const { fresh, drops } = await storeBatch(items);
   let matches = 0;
 
@@ -22,6 +24,7 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
     if (matched.length && source === "vinted") matched = await enrichVinted(entry, matched);
     const previousPrice = "from" in entry ? entry.from : null;
     const l = entry.listing;
+    let pushed = false; // one push per listing, even when several watches rate it top
 
     for (const watch of matched) {
       const e = await evaluate({
@@ -33,7 +36,7 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         previousPrice,
         describe: source === "vinted" ? () => describeVinted(entry) : undefined,
       });
-      await saveMatch(e.row);
+      const matchId = await saveMatch(e.row);
       matches++;
       const drop = previousPrice != null ? ` (baixou de ${previousPrice} €)` : "";
       const ai = e.ai ? ` [IA ${e.ai.status}${e.ai.status === "ok" ? "" : `: ${e.ai.error}`}, ${e.ai.ms} ms]` : "";
@@ -41,8 +44,12 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         `${silent ? "[silencioso] " : ""}match ${source} "${l.title}" ${l.price ?? "?"} €${drop} → ${watch.name}: ` +
           `${e.row.score} ${e.tier}${ai} — ${e.row.reason}`,
       );
-      if (!e.held) log(`PUSH (F4): ${l.title} ${l.price} € — ${l.url}`);
-      else if (e.tier === "imperdivel") log(`sem push (${e.held}): ${l.title}`);
+      if (e.held) {
+        if (e.tier === "imperdivel") log(`sem push (${e.held}): ${l.title}`);
+      } else if (!pushed) {
+        pushed = true;
+        await notify(matchId, dealPayload(l, entry.id, watch.name, e.row, previousPrice), previousPrice != null, detectedAt);
+      }
     }
   }
   return { fresh: fresh.length, matches };
@@ -95,8 +102,19 @@ async function enrich<T>(scope: string, fn: () => Promise<Enrichment<T>>): Promi
   }
 }
 
-async function saveMatch(row: Insert<"matches">): Promise<void> {
-  if (flags.dryRun) return;
-  const { error } = await db.from("matches").upsert(row, { onConflict: "listing_id,watch_id" });
+async function saveMatch(row: Insert<"matches">): Promise<number | null> {
+  if (flags.dryRun) return null;
+  const { data, error } = await db.from("matches").upsert(row, { onConflict: "listing_id,watch_id" }).select("id").single();
   if (error) throw new Error(`matches upsert: ${error.message}`);
+  return data.id;
+}
+
+async function notify(matchId: number | null, payload: PushPayload, drop: boolean, detectedAt: number): Promise<void> {
+  if (!getSettings().push_enabled) return log(`push desligado nas Definições: ${payload.title}`);
+  const r = await sendPush(drop ? "price_drop" : "deal", payload, { matchId, startedAt: detectedAt });
+  log(`PUSH ${r.ok} ok, ${r.failed} falharam${r.error ? ` (${r.error})` : ""}, ${Date.now() - detectedAt} ms: ${payload.title}`);
+  if (r.ok && matchId != null) {
+    const { error } = await db.from("matches").update({ notified: true }).eq("id", matchId);
+    if (error) log("matches notified update failed:", error.message);
+  }
 }

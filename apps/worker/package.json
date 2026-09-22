@@ -10,16 +10,19 @@
     "test": "vitest run --passWithNoTests",
     "start": "tsx src/main.ts",
     "once": "tsx src/main.ts --once",
-    "dry": "tsx src/main.ts --once --dry-run"
+    "dry": "tsx src/main.ts --once --dry-run",
+    "test-push": "tsx src/main.ts --test-push"
   },
   "dependencies": {
     "@dh/shared": "*",
     "@google/genai": "^2.24.0",
     "@supabase/supabase-js": "^2.117.0",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "@types/web-push": "^3.6.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
