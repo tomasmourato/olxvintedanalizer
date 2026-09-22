@@ -8,6 +8,6 @@ A PWA plus a home worker that polls OLX.pt and Vinted.pt for PC parts and sends 
 - Supabase project `pcdealhunter`, ref `suldkcbhpmvhpxksrlot` (linked). Schema: `supabase/migrations/`. Public sign-ups are off.
 - Secrets live only in gitignored files: root `.env` (`SUPABASE_DB_PASSWORD` for the CLI) and `apps/worker/.env` (URL + secret key). The web publishable key is committed in `apps/web/src/lib/supabase.ts` (public by design).
 - Commands: `npm run typecheck`, `npm test`, `npm run build:web`, `npm run db:types` (regenerate `packages/shared/src/database.types.ts` after a migration), `npx supabase db push` (needs `SUPABASE_DB_PASSWORD`).
-- Careful: `supabase config push` applies without asking and pushes every auth setting in `supabase/config.toml`.
+- Careful: `supabase config push` applies without asking (preview with `supabase config diff`). Keep `[auth.email] enable_signup = true`: false disables email logins entirely; sign-ups are blocked by `auth.enable_signup = false`. Email confirmations are off so email changes apply immediately (the app re-checks the password).
 - User rules: never create accounts; stop and ask for any login/key. The user is on Claude Pro, so keep sessions lean (one phase per session, no subagents).
 - UI language: Portuguese (pt-PT).
