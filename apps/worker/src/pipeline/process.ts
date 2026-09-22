@@ -1,14 +1,15 @@
-// New/changed listings → match against watches → (Vinted) enrich → matches table.
-// F3 plugs scoring, the AI call and push notifications in after `saveMatches`.
-import type { Source, Update, Watch } from "@dh/shared";
+// New/changed listings → match against watches → (Vinted) enrich → evaluate → matches table.
+// F4 sends the push where this logs "PUSH".
+import type { Insert, Source, Update, Watch } from "@dh/shared";
 import { getSettings, getWatches } from "../config.js";
 import { db } from "../db.js";
 import { BlockedError, type ScrapedListing } from "../sources/types.js";
 import { itemDetails, sellerCountry, type Enrichment } from "../sources/vinted.js";
 import { logRun } from "../status.js";
 import { errorText, flags, log } from "../util.js";
+import { evaluate } from "./evaluate.js";
 import { matchWatches } from "./match.js";
-import { storeBatch, updateListing, type Stored } from "./store.js";
+import { storeBatch, updateListing, type PriceDrop, type Stored } from "./store.js";
 
 export type BatchResult = { fresh: number; matches: number };
 
@@ -16,14 +17,32 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
   const { fresh, drops } = await storeBatch(items);
   let matches = 0;
 
-  for (const entry of [...fresh, ...drops]) {
+  for (const entry of [...fresh, ...drops] as (Stored | PriceDrop)[]) {
     let matched = matchWatches(entry.listing, getWatches(), getSettings());
     if (matched.length && source === "vinted") matched = await enrichVinted(entry, matched);
-    if (!matched.length) continue;
-    matches += await saveMatches(entry, matched);
-    const drop = "from" in entry ? ` (baixou de ${entry.from} €)` : "";
-    for (const w of matched) {
-      log(`${silent ? "[silencioso] " : ""}match ${source} "${entry.listing.title}" ${entry.listing.price ?? "?"} €${drop} → ${w.name}`);
+    const previousPrice = "from" in entry ? entry.from : null;
+    const l = entry.listing;
+
+    for (const watch of matched) {
+      const e = await evaluate({
+        listing: l,
+        listingId: entry.id,
+        watch,
+        settings: getSettings(),
+        silent,
+        previousPrice,
+        describe: source === "vinted" ? () => describeVinted(entry) : undefined,
+      });
+      await saveMatch(e.row);
+      matches++;
+      const drop = previousPrice != null ? ` (baixou de ${previousPrice} €)` : "";
+      const ai = e.ai ? ` [IA ${e.ai.status}${e.ai.status === "ok" ? "" : `: ${e.ai.error}`}, ${e.ai.ms} ms]` : "";
+      log(
+        `${silent ? "[silencioso] " : ""}match ${source} "${l.title}" ${l.price ?? "?"} €${drop} → ${watch.name}: ` +
+          `${e.row.score} ${e.tier}${ai} — ${e.row.reason}`,
+      );
+      if (!e.held) log(`PUSH (F4): ${l.title} ${l.price} € — ${l.url}`);
+      else if (e.tier === "imperdivel") log(`sem push (${e.held}): ${l.title}`);
     }
   }
   return { fresh: fresh.length, matches };
@@ -41,16 +60,22 @@ async function enrichVinted(entry: Stored, matched: Watch[]): Promise<Watch[]> {
     if (country) l.country = patch.country = country;
   }
   const needsCatalog = matched.some((w) => w.vinted_catalog_ids.length) && !l.category_path;
-  if (needsCatalog && matchWatches(l, matched, getSettings()).length) {
-    const d = await enrich(`item ${l.external_id}`, () => itemDetails(l.url));
-    if (d) {
-      l.category_path = d.catalogPath;
-      l.category_id = patch.category_id = d.catalogId;
-      l.description = patch.description = d.description;
-    }
-  }
   if (Object.keys(patch).length) await updateListing(entry.id, patch);
+  if (needsCatalog && matchWatches(l, matched, getSettings()).length) await describeVinted(entry);
   return matchWatches(l, matched, getSettings());
+}
+
+/** Item page: catalog chain + description. Fetched at most once per listing. */
+async function describeVinted(entry: Stored): Promise<void> {
+  const l = entry.listing;
+  if (l.category_path) return;
+  l.category_path = []; // marks the attempt, even if it fails
+  const d = await enrich(`item ${l.external_id}`, () => itemDetails(l.url));
+  if (!d) return;
+  l.category_path = d.catalogPath;
+  l.category_id = d.catalogId;
+  l.description = d.description;
+  await updateListing(entry.id, { category_id: d.catalogId, description: d.description });
 }
 
 /** Runs one enrichment request and logs it; failures return null (the listing keeps its match). */
@@ -70,10 +95,8 @@ async function enrich<T>(scope: string, fn: () => Promise<Enrichment<T>>): Promi
   }
 }
 
-async function saveMatches(entry: Stored, watches: Watch[]): Promise<number> {
-  if (flags.dryRun) return watches.length;
-  const rows = watches.map((w) => ({ listing_id: entry.id, watch_id: w.id, price: entry.listing.price }));
-  const { error } = await db.from("matches").upsert(rows, { onConflict: "listing_id,watch_id" });
+async function saveMatch(row: Insert<"matches">): Promise<void> {
+  if (flags.dryRun) return;
+  const { error } = await db.from("matches").upsert(row, { onConflict: "listing_id,watch_id" });
   if (error) throw new Error(`matches upsert: ${error.message}`);
-  return rows.length;
 }

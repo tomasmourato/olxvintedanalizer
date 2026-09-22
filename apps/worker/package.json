@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@dh/shared": "*",
+    "@google/genai": "^2.24.0",
     "@supabase/supabase-js": "^2.117.0",
     "playwright": "^1.63.0"
   },

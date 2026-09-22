@@ -17,7 +17,7 @@ export function matchWatches(listing: ScrapedListing, watches: Watch[], settings
   return watches.filter((w) => {
     if (!w.active || !w.sources.includes(listing.source)) return false;
     const cats = listing.source === "olx" ? w.olx_category_ids : w.vinted_catalog_ids;
-    const path = listing.category_path ?? (listing.category_id != null ? [listing.category_id] : null);
+    const path = listing.category_path?.length ? listing.category_path : listing.category_id != null ? [listing.category_id] : null;
     if (cats.length && path && !cats.some((c) => path.includes(c))) return false;
     if (w.include_any.length && !w.include_any.some((t) => hasPhrase(title, t))) return false;
     if (!w.include_all.every((t) => hasPhrase(title, t))) return false;
