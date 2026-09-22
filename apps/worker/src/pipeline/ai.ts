@@ -1,10 +1,12 @@
 // Gemini verdict for rule candidates: structured JSON, hard 4 s timeout, per-minute cap for the free tier.
 // Any failure falls back to the rules score (the caller marks it "(sem IA)").
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { Settings, Watch } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
 import type { RuleResult } from "./score.js";
 
+// Flash-Lite answers in ~1 s; gemini-3.8-flash took 4 s+ even with thinking "low" (measured 2026-09-22).
+const MODEL = "gemini-3.5-flash-lite";
 const TIMEOUT_MS = 4_000;
 const MAX_PER_MIN = 10;
 const MAX_DESCRIPTION = 1_500;
@@ -50,6 +52,8 @@ export function systemPrompt(s: Pick<Settings, "candidate_threshold" | "notify_t
     `- 0–${s.candidate_threshold - 1} normal: preço de mercado ou acima, ou não serve.`,
     "Baixa muito a pontuação se: for só um acessório, caixa vazia, cabo, suporte ou peça que apenas menciona o modelo; estiver avariado, para peças ou bloqueado; for um pedido de compra (procuro/compro) ou troca; não corresponder ao que a pesquisa procura; tiver sinais de burla (preço irrealista, pagamento fora da plataforma, fotos de catálogo).",
     "Usa o teu conhecimento dos preços atuais de mercado em Portugal. O preço-alvo é o máximo que o revendedor quer pagar; a mediana é a dos anúncios desta pesquisa nos últimos 30 dias.",
+    "Vendedores de outros países são aceitáveis (o Vinted envia para Portugal): não penalizes só por isso, apenas se exigirem entrega em mão ou pagamento fora da plataforma.",
+    "Responde em português de Portugal, com acentos.",
     s.global_context.trim() && `Contexto do revendedor:\n${s.global_context.trim()}`,
   ]
     .filter(Boolean)
@@ -102,13 +106,12 @@ export async function askAi(input: AiInput): Promise<AiResult> {
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   try {
     const res = await client.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+      model: process.env.GEMINI_MODEL || MODEL,
       contents: userPrompt(input),
       config: {
         systemInstruction: systemPrompt(input.settings),
         responseMimeType: "application/json",
         responseJsonSchema: SCHEMA,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         abortSignal: signal,
       },
     });
