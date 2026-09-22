@@ -1,0 +1,20 @@
+{
+  "name": "olxvintedanalizer",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "build:web": "npm run build -w @dh/web",
+    "db:types": "supabase gen types --lang typescript --linked > packages/shared/src/database.types.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+apps/worker/.browser-profile/
+apps/worker/spikes/out/
+*.log
+.DS_Store
+supabase/.temp/
+supabase/.branches/
