@@ -6,7 +6,7 @@ type Status = { kind: "ok" | "error"; text: string } | null;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export default function PushCard() {
+export default function PushCard({ onChange }: { onChange?: () => void }) {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
@@ -30,9 +30,14 @@ export default function PushCard() {
     run(async () => {
       const s = await enablePush();
       setState(s);
+      onChange?.();
       if (s === "on") setStatus({ kind: "ok", text: "Notificações ativas neste dispositivo." });
     });
-  const disable = () => run(async () => setState(await disablePush()));
+  const disable = () =>
+    run(async () => {
+      setState(await disablePush());
+      onChange?.();
+    });
   const test = () =>
     run(async () => {
       const r = await sendTestPush();

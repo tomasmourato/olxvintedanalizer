@@ -1,6 +1,6 @@
 // Rules-based deal score (0–100): the watch's target price first, the 30-day median as a modifier
 // (or on its own when there is no target). Pure functions, so the thresholds are easy to test.
-import type { Settings, Tier } from "@dh/shared";
+import { fmtEuros, fmtNumber, type Settings, type Tier } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
 
 export const MIN_SAMPLES = 5; // fewer matches than this and the median means nothing
@@ -38,7 +38,7 @@ export function ruleScore({ price, target, median }: RuleInput): RuleResult {
     // At the target = 80 (the default push threshold); 30 % under = 100; 30 % over = 50.
     const r = price / target;
     score = r <= 1 ? 80 + (1 - r) * 67 : 80 - (r - 1) * 100;
-    notes.push(r <= 1 ? `${pct(1 - r)} % abaixo do alvo (${target} €)` : `${pct(r - 1)} % acima do alvo (${target} €)`);
+    notes.push(r <= 1 ? `${pct(1 - r)} % abaixo do alvo (${fmtEuros(target)})` : `${pct(r - 1)} % acima do alvo (${fmtEuros(target)})`);
     // The median nudges by at most ±10 points.
     if (discountPct != null) score += clamp(discountPct / 3, -10, 10);
   } else if (discountPct != null) {
@@ -48,7 +48,7 @@ export function ruleScore({ price, target, median }: RuleInput): RuleResult {
     notes.push("sem preço-alvo nem histórico");
   }
   if (discountPct != null) {
-    notes.push(discountPct >= 0 ? `${discountPct} % abaixo da mediana (${median} €)` : `${-discountPct} % acima da mediana (${median} €)`);
+    notes.push(discountPct >= 0 ? `${fmtNumber(discountPct)} % abaixo da mediana (${fmtEuros(median!)})` : `${fmtNumber(-discountPct)} % acima da mediana (${fmtEuros(median!)})`);
   }
 
   const reference = target ?? median;

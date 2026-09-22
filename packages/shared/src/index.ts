@@ -18,3 +18,5 @@ export type PushSubscriptionRow = Row<"push_subscriptions">;
 export type Source = "olx" | "vinted";
 export type Tier = "imperdivel" | "bom" | "normal";
 export type { PushKind, PushPayload } from "./push.js";
+export { clockIn, isActive } from "./time.js";
+export { fmtEuros, fmtNumber } from "./format.js";

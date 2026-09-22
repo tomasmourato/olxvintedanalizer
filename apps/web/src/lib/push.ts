@@ -28,6 +28,12 @@ async function currentSubscription(): Promise<PushSubscription | null> {
   return reg.pushManager.getSubscription();
 }
 
+/** This device's push endpoint, to mark it in the device list. */
+export async function currentEndpoint(): Promise<string | null> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+  return (await currentSubscription())?.endpoint ?? null;
+}
+
 export async function enablePush(): Promise<PushState> {
   if ((await Notification.requestPermission()) !== "granted") return pushState();
   const reg = await navigator.serviceWorker.ready;

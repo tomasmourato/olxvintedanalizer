@@ -13,6 +13,13 @@ describe("median", () => {
 });
 
 describe("ruleScore", () => {
+  it("writes the notes with Portuguese number formatting", () => {
+    expect(ruleScore({ price: 252.7, target: 249.5, median: 299.95 }).notes).toEqual([
+      "1 % acima do alvo (249,5 €)",
+      "15,8 % abaixo da mediana (299,95 €)",
+    ]);
+  });
+
   it("scores against the target price", () => {
     expect(ruleScore({ price: 250, target: 250, median: null }).score).toBe(80);
     expect(ruleScore({ price: 175, target: 250, median: null }).score).toBe(100);
