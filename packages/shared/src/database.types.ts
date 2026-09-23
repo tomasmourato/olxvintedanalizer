@@ -236,6 +236,42 @@ export type Database = {
           },
         ]
       }
+      part_prices: {
+        Row: {
+          key: string
+          label: string
+          manual_value: number | null
+          market_at: string | null
+          market_scope: string | null
+          market_value: number | null
+          samples: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          label: string
+          manual_value?: number | null
+          market_at?: string | null
+          market_scope?: string | null
+          market_value?: number | null
+          samples?: number
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          label?: string
+          manual_value?: number | null
+          market_at?: string | null
+          market_scope?: string | null
+          market_value?: number | null
+          samples?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string

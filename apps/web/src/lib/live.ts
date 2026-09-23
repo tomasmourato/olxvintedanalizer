@@ -4,7 +4,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import type { Row } from "@dh/shared";
 import { supabase } from "./supabase";
 
-type LiveTable = "settings" | "watches" | "matches" | "notifications" | "runs" | "worker_status";
+type LiveTable = "settings" | "watches" | "matches" | "notifications" | "runs" | "worker_status" | "part_prices";
 
 export const errorText = (e: unknown) =>
   e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String(e.message) : String(e);

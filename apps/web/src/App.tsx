@@ -6,6 +6,7 @@ import { must, useDebounced, useHashRoute, useNow, useQuery, useRealtime } from 
 import Login from "./pages/Login";
 import Deals from "./pages/Deals";
 import Watches from "./pages/Watches";
+import Prices from "./pages/Prices";
 import Notifications from "./pages/Notifications";
 import Logs, { workerOnline } from "./pages/Logs";
 import Settings from "./pages/Settings";
@@ -75,7 +76,7 @@ function Shell({ email }: { email: string }) {
 
       <main className="mx-auto max-w-2xl p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
         {tab.path === "negocios" && <Deals />}
-        {tab.path === "pesquisas" && <Watches id={id} />}
+        {tab.path === "pesquisas" && (id === "precos" ? <Prices /> : <Watches id={id} />)}
         {tab.path === "alertas" && <Notifications />}
         {tab.path === "logs" && <Logs worker={worker.data} settings={settings.data} />}
         {tab.path === "definicoes" && <Settings settings={settings.data} email={email} onSaved={settings.reload} />}

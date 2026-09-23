@@ -3,7 +3,7 @@ import type { Insert, Source, Watch } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useQuery, useRealtime } from "../lib/live";
 import { CATEGORIES } from "../lib/categories";
-import { euros, sourceLabel } from "../lib/format";
+import { euros, parsePrice, priceText, sourceLabel } from "../lib/format";
 import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Switch, TagInput, TextArea, Toggle } from "../components/ui";
 
 const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Outros"];
@@ -64,6 +64,16 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
           Nova pesquisa
         </Button>
       </div>
+      <button type="button" onClick={() => go("pesquisas/precos")} className="flex w-full items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-left">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-neutral-900 text-neutral-300">
+          <Icon name="chartBar" className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-neutral-100">Preços das peças</span>
+          <span className="block truncate text-sm text-neutral-400">Valor de mercado de cada gráfica, processador, RAM…</span>
+        </span>
+        <Icon name="chevronRight" className="size-4 text-neutral-600" />
+      </button>
       {error && <Message kind="error" text={error} />}
       {!watches.length && <Empty icon="search">Ainda não há pesquisas. Cria a primeira.</Empty>}
       {groups.map((g) => (
@@ -122,7 +132,6 @@ type Draft = Required<Omit<Insert<"watches">, "price_min" | "price_max" | "targe
   good_price: string;
 };
 
-const priceText = (n: number | null) => (n == null ? "" : String(n).replace(".", ","));
 
 function toDraft(w?: Watch): Draft {
   return {
@@ -142,15 +151,6 @@ function toDraft(w?: Watch): Draft {
     context: w?.context ?? "",
     active: w?.active ?? true,
   };
-}
-
-/** "" → null; accepts "249,90". Throws on anything else. */
-function parsePrice(s: string, label: string): number | null {
-  const t = s.trim().replace(/\s|€/g, "").replace(",", ".");
-  if (!t) return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) throw new Error(`${label}: valor inválido.`);
-  return Math.round(n * 100) / 100;
 }
 
 function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: string[]; onDone: () => void }) {

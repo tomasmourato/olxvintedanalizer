@@ -8,6 +8,18 @@ const day = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short" })
 export const euros = (n: number | string | null | undefined) => (n == null ? "—" : fmtEuros(Number(n)));
 export const pct = (n: number | string) => `${fmtNumber(Number(n))} %`;
 
+/** A price for an input field: "249,9", or "" for none. */
+export const priceText = (n: number | null) => (n == null ? "" : String(n).replace(".", ","));
+
+/** "" → null; accepts "249,90". Throws on anything else. */
+export function parsePrice(s: string, label: string): number | null {
+  const t = s.trim().replace(/\s|€/g, "").replace(",", ".");
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${label}: valor inválido.`);
+  return Math.round(n * 100) / 100;
+}
+
 /** "14:03" today, "ontem 14:03", "3 set 14:03" otherwise (seconds for logs). */
 export function when(iso: string, seconds = false): string {
   const d = new Date(iso);

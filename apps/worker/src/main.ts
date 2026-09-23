@@ -1,8 +1,10 @@
 // Entry point. Flags: --once (one cycle per source, then exit), --dry-run (no DB writes),
-// --olx / --vinted (only that source), --test-push (send a test notification, then exit).
+// --olx / --vinted (only that source), --test-push (send a test notification, then exit),
+// --prices (refresh the parts' market prices, then exit).
 import type { Source } from "@dh/shared";
 import { getWatches, loadConfig, watchConfig } from "./config.js";
 import { sendPush } from "./push.js";
+import { refreshMarketPrices, startMarketPrices } from "./pipeline/prices.js";
 import { SourceLoop } from "./scheduler.js";
 import { closeOlx } from "./sources/olx.js";
 import { startHeartbeat, VERSION, writeStatus } from "./status.js";
@@ -19,6 +21,10 @@ if (args.has("--test-push")) {
 }
 
 await loadConfig();
+if (args.has("--prices")) {
+  await refreshMarketPrices();
+  process.exit(0);
+}
 log(`worker ${VERSION}: ${sources.join(" + ")}, ${getWatches().length} pesquisas ativas${flags.dryRun ? ", dry-run" : ""}`);
 
 if (args.has("--once")) {
@@ -29,6 +35,7 @@ if (args.has("--once")) {
 
 const stopHeartbeat = startHeartbeat();
 const stopConfig = watchConfig();
+const stopPrices = startMarketPrices();
 for (const s of sources) {
   new SourceLoop(s).run().catch(async (e) => {
     log(`${s}: ciclo terminou com erro — ${errorText(e)}`);
@@ -41,6 +48,7 @@ async function shutdown(signal: string) {
   log(`${signal}: a terminar`);
   stopHeartbeat();
   stopConfig();
+  stopPrices();
   await closeOlx();
   process.exit(0);
 }
