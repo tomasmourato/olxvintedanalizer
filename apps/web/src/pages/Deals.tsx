@@ -63,7 +63,7 @@ export default function Deals() {
         <Select label="Período" value={f.period} onChange={(period) => set({ period })} options={[["24h", "24 horas"], ["7d", "7 dias"], ["30d", "30 dias"]]} />
         <Select label="Fonte" value={f.source} onChange={(source) => set({ source })} options={[["all", "Todas"], ["olx", "OLX"], ["vinted", "Vinted"]]} />
         <Select label="Ordenar" value={f.sort} onChange={(sort) => set({ sort })} options={[["score", "Pontuação"], ["discount", "Desconto"], ["date", "Recentes"]]} />
-        <div className="col-span-2 sm:col-span-1">
+        <div className="col-span-2 min-w-0 sm:col-span-1">
           <Select label="Pesquisa" value={f.watch} onChange={(watch) => set({ watch })} options={[["all", "Todas"], ...watches]} />
         </div>
         <Select label="Agrupar" value={f.group} onChange={(group) => set({ group })} options={[["tier", "Nível"], ["category", "Categoria"]]} />

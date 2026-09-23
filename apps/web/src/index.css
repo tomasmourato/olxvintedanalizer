@@ -9,4 +9,6 @@ html {
   color-scheme: dark;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
+  /* No native bounce or sideways drift; PullToRefresh replaces the pull-down. */
+  overscroll-behavior: none;
 }

@@ -14,6 +14,24 @@ export function registerServiceWorker(): void {
   if ("serviceWorker" in navigator) registerSW({ immediate: true });
 }
 
+/** Pull-to-refresh: fetch a newer app version first (if any), then reload the page. */
+export async function reloadApp(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+    const next = reg?.installing ?? reg?.waiting;
+    if (next) {
+      await new Promise((resolve) => {
+        next.addEventListener("statechange", () => next.state === "activated" && resolve(null));
+        setTimeout(resolve, 4000);
+      });
+    }
+  } catch {
+    // offline or no service worker: a plain reload still refreshes the data
+  }
+  location.reload();
+}
+
 export async function pushState(): Promise<PushState> {
   // iOS only offers push to the app installed on the home screen (16.4+).
   if (isIos() && !isStandalone()) return "ios-install";

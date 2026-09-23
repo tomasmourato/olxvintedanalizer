@@ -13,6 +13,7 @@ export default defineConfig({
       srcDir: "src",
       filename: "sw.ts",
       injectRegister: false,
+      registerType: "autoUpdate",
       manifest: {
         name: "Deal Hunter",
         short_name: "Deals",
