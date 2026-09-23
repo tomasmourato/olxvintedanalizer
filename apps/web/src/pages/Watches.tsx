@@ -6,7 +6,7 @@ import { CATEGORIES } from "../lib/categories";
 import { euros, sourceLabel } from "../lib/format";
 import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Switch, TagInput, TextArea, Toggle } from "../components/ui";
 
-const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Portáteis", "Outros"];
+const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Outros"];
 
 async function loadWatches() {
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();

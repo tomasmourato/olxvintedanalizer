@@ -6,7 +6,6 @@ export const CATEGORIES: Record<Source, { id: number; name: string; sub?: boolea
   olx: [
     { id: 5371, name: "Componentes e peças" },
     { id: 4731, name: "Computadores" },
-    { id: 4753, name: "Portáteis" },
     { id: 4745, name: "Monitores" },
     { id: 4751, name: "Periféricos" },
     { id: 5370, name: "Acessórios" },
@@ -23,7 +22,6 @@ export const CATEGORIES: Record<Source, { id: number; name: string; sub?: boolea
     { id: 3604, name: "Refrigeração", sub: true },
     { id: 3601, name: "Combos", sub: true },
     { id: 3581, name: "Computadores de secretária" },
-    { id: 3580, name: "Portáteis" },
   ],
 };
 
