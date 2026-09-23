@@ -13,7 +13,7 @@ flags.dryRun = args.has("--dry-run");
 const sources: Source[] = args.has("--olx") ? ["olx"] : args.has("--vinted") ? ["vinted"] : ["olx", "vinted"];
 
 if (args.has("--test-push")) {
-  const r = await sendPush("test", { title: "Push de teste do worker ✅", body: "O worker consegue enviar notificações.", url: "/", tag: "test" });
+  const r = await sendPush("test", { title: "Push de teste do worker", body: "O worker consegue enviar notificações.", url: "/", tag: "test" });
   log(`push de teste: ${r.ok} ok, ${r.failed} falharam${r.error ? ` — ${r.error}` : ""}`);
   process.exit(r.ok ? 0 : 1);
 }

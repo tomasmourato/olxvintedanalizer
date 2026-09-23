@@ -5,7 +5,7 @@ import { errorText, must, useQuery } from "../lib/live";
 import { CATEGORIES, categoryName } from "../lib/categories";
 import { ago, when } from "../lib/format";
 import { currentEndpoint } from "../lib/push";
-import { Button, Card, Field, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
+import { Badge, Button, Card, Field, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
 import PushCard from "../components/PushCard";
 import Account from "./Account";
 
@@ -143,7 +143,7 @@ function SettingsForm({ settings, onSaved }: { settings: SettingsRow; onSaved: (
           <Field label="Das" type="time" required value={d.active_from} onChange={(e) => set({ active_from: e.target.value })} />
           <Field label="Até às" type="time" required value={d.active_to} onChange={(e) => set({ active_to: e.target.value })} />
         </div>
-        <p className="mt-2 text-xs text-slate-500">Hora de Portugal ({settings.timezone}). Fora deste horário o worker não pesquisa.</p>
+        <p className="mt-2 text-xs text-neutral-500">Hora de Portugal ({settings.timezone}). Fora deste horário o worker não pesquisa.</p>
       </Card>
 
       <Card title="Filtros globais">
@@ -175,14 +175,14 @@ function SettingsForm({ settings, onSaved }: { settings: SettingsRow; onSaved: (
               <Field key={key} label={`${label} (s)`} type="number" inputMode="numeric" min={min} value={d[key]} onChange={(e) => set({ [key]: e.target.value })} />
             ))}
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-neutral-500">
             Segundos entre pedidos (com variação aleatória). Mais rápido = alertas mais cedo, mas mais risco de bloqueio. Se houver bloqueios seguidos, a fonte pausa sozinha.
           </p>
         </div>
       </Card>
 
       {dirty && (
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-3 rounded-xl border border-sky-900 bg-slate-900/95 p-3 backdrop-blur">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-neutral-700 bg-neutral-900/95 p-3 shadow-lg shadow-black backdrop-blur-md">
           <Button type="submit" disabled={busy}>{busy ? "A guardar…" : "Guardar definições"}</Button>
           {!busy && <Button variant="ghost" onClick={() => setD(initial)}>Anular</Button>}
           {status && <Message {...status} />}
@@ -213,23 +213,23 @@ function Devices({ q }: { q: ReturnType<typeof useQuery<Awaited<ReturnType<typeo
       {!q.data ? (
         <Loading error={q.error} />
       ) : !q.data.rows.length ? (
-        <p className="text-sm text-slate-500">Nenhum. Ativa as notificações em cada telemóvel onde as queres receber.</p>
+        <p className="text-sm text-neutral-500">Nenhum. Ativa as notificações em cada telemóvel onde as queres receber.</p>
       ) : (
-        <ul className="divide-y divide-slate-800">
+        <ul className="divide-y divide-neutral-800">
           {q.data.rows.map((s) => (
             <li key={s.id} className="flex items-center gap-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
-                <p className="text-slate-200">
+                <p className="flex items-center gap-2 text-neutral-200">
                   {s.label ?? "Dispositivo"}
-                  {s.endpoint === q.data!.endpoint && <span className="text-sky-400"> · este</span>}
+                  {s.endpoint === q.data!.endpoint && <Badge tone="outline">este</Badge>}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-neutral-500">
                   {[`desde ${when(s.created_at)}`, s.last_success_at && `último push ${ago(s.last_success_at)}`, s.failures > 0 && `${s.failures} falhas seguidas`]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
               </div>
-              <button type="button" onClick={() => remove(s.id, s.label)} className="text-xs text-rose-300 hover:underline">
+              <button type="button" onClick={() => remove(s.id, s.label)} className="text-xs text-rose-400 hover:underline">
                 Remover
               </button>
             </li>

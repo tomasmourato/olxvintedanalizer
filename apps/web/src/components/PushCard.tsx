@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { disablePush, enablePush, pushState, sendTestPush, type PushState } from "../lib/push";
-import { Button, Card, Message } from "./ui";
+import { Button, Card, Dot, Message } from "./ui";
 
 type Status = { kind: "ok" | "error"; text: string } | null;
 
@@ -51,32 +51,32 @@ export default function PushCard({ onChange }: { onChange?: () => void }) {
   return (
     <Card title="Notificações">
       <div className="space-y-3 text-sm">
-        {state === null && <p className="text-slate-400">A verificar…</p>}
-        {state === "unsupported" && <p className="text-slate-400">Este navegador não suporta notificações push.</p>}
+        {state === null && <p className="text-neutral-400">A verificar…</p>}
+        {state === "unsupported" && <p className="text-neutral-400">Este navegador não suporta notificações push.</p>}
         {state === "ios-install" && (
-          <div className="space-y-2 text-slate-300">
+          <div className="space-y-2 text-neutral-300">
             <p>No iPhone, as notificações só funcionam com a app instalada no ecrã principal (iOS 16.4 ou mais recente):</p>
-            <ol className="list-decimal space-y-1 pl-5 text-slate-400">
-              <li>No Safari, toca em <b className="text-slate-200">Partilhar</b> (o quadrado com a seta).</li>
-              <li>Escolhe <b className="text-slate-200">Adicionar ao ecrã principal</b>.</li>
+            <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
+              <li>No Safari, toca em <b className="text-neutral-200">Partilhar</b> (o quadrado com a seta).</li>
+              <li>Escolhe <b className="text-neutral-200">Adicionar ao ecrã principal</b>.</li>
               <li>Abre a app a partir do ícone novo, entra e ativa as notificações aqui.</li>
             </ol>
           </div>
         )}
         {state === "denied" && (
-          <p className="text-slate-300">
+          <p className="text-neutral-300">
             As notificações estão bloqueadas para esta app. Ativa-as nas definições do telemóvel (ou do navegador) e volta a abrir a app.
           </p>
         )}
         {state === "off" && (
           <>
-            <p className="text-slate-400">Recebe um alerta assim que aparecer um negócio imperdível.</p>
+            <p className="text-neutral-400">Recebe um alerta assim que aparecer um negócio imperdível.</p>
             <Button onClick={enable} disabled={busy}>{busy ? "A ativar…" : "Ativar notificações"}</Button>
           </>
         )}
         {state === "on" && (
           <>
-            <p className="text-emerald-400">Ativas neste dispositivo.</p>
+            <p className="flex items-center gap-2 text-neutral-200"><Dot on />Ativas neste dispositivo.</p>
             <div className="flex flex-wrap gap-2">
               <Button onClick={test} disabled={busy}>{busy ? "A enviar…" : "Enviar push de teste"}</Button>
               <Button variant="ghost" onClick={disable} disabled={busy}>Desativar</Button>

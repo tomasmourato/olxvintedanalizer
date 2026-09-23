@@ -10,7 +10,7 @@ export function dealPayload(
   previousPrice: number | null,
 ): PushPayload {
   const price = listing.price != null ? fmtEuros(listing.price) : "sem preço";
-  const head = previousPrice != null ? `📉 ${price} (era ${fmtEuros(previousPrice)})` : `🔥 ${price}`;
+  const head = previousPrice != null ? `Baixou: ${price} (era ${fmtEuros(previousPrice)})` : price;
   const facts = [
     watchName,
     listing.source === "olx" ? "OLX" : "Vinted",

@@ -35,7 +35,7 @@ function ChangeEmail({ email }: { email: string }) {
   return (
     <Card title="Mudar email">
       <form onSubmit={submit} className="space-y-3">
-        <p className="text-sm text-slate-400">Atual: {email}</p>
+        <p className="text-sm text-neutral-400">Atual: {email}</p>
         <Field label="Novo email" type="email" autoComplete="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
         <Field label="Password atual" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         {status && <Message {...status} />}

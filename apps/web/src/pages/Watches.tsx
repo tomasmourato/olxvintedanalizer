@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useQuery, useRealtime } from "../lib/live";
 import { CATEGORIES } from "../lib/categories";
 import { euros, sourceLabel } from "../lib/format";
-import { Button, Card, Empty, Field, Loading, Message, PickList, Switch, TagInput, TextArea, Toggle } from "../components/ui";
+import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Switch, TagInput, TextArea, Toggle } from "../components/ui";
 
 const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Portáteis", "Outros"];
 
@@ -58,27 +58,30 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-slate-400">{watches.filter((w) => w.active).length} de {watches.length} ativas</p>
-        <Button onClick={() => go("pesquisas/nova")}>+ Nova pesquisa</Button>
+        <p className="text-sm text-neutral-400">{watches.filter((w) => w.active).length} de {watches.length} ativas</p>
+        <Button onClick={() => go("pesquisas/nova")}>
+          <Icon name="plus" className="size-4" strokeWidth={2.5} />
+          Nova pesquisa
+        </Button>
       </div>
       {error && <Message kind="error" text={error} />}
-      {!watches.length && <Empty>Ainda não há pesquisas. Cria a primeira.</Empty>}
+      {!watches.length && <Empty icon="search">Ainda não há pesquisas. Cria a primeira.</Empty>}
       {groups.map((g) => (
         <section key={g.category}>
-          <h2 className="mb-2 font-semibold">{g.category}</h2>
+          <h2 className="mb-2 font-semibold tracking-tight">{g.category}</h2>
           <ul className="space-y-2">
             {g.watches.map((w) => {
               const c = counts.get(w.id);
               const active = pending[w.id] ?? w.active;
               return (
-                <li key={w.id} className={`flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3 ${active ? "" : "opacity-60"}`}>
+                <li key={w.id} className={`flex items-start gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 transition-opacity ${active ? "" : "opacity-50"}`}>
                   <div className="pt-0.5">
                     <Switch checked={active} onChange={(v) => setActive(w, v)} label={`Ativar ${w.name}`} disabled={w.id in pending} />
                   </div>
                   <button type="button" onClick={() => go(`pesquisas/${w.id}`)} className="min-w-0 flex-1 text-left">
-                    <p className="font-medium text-slate-100">{w.name}</p>
-                    <p className="truncate text-sm text-slate-400">{summary(w)}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-medium text-neutral-100">{w.name}</p>
+                    <p className="truncate text-sm text-neutral-400">{summary(w)}</p>
+                    <p className="text-xs text-neutral-500">
                       {[
                         w.sources.map((s) => sourceLabel[s as Source]).join(" + "),
                         w.search_remote && "site todo",
@@ -88,7 +91,7 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
                         .join(" · ")}
                     </p>
                   </button>
-                  <span className="self-center text-slate-600" aria-hidden>›</span>
+                  <Icon name="chevronRight" className="size-4 self-center text-neutral-600" />
                 </li>
               );
             })}
@@ -194,7 +197,10 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
 
   return (
     <form onSubmit={save} className="space-y-4">
-      <button type="button" onClick={() => go("pesquisas")} className="text-sm text-sky-400">‹ Pesquisas</button>
+      <button type="button" onClick={() => go("pesquisas")} className="-ml-1 inline-flex items-center gap-0.5 text-sm text-neutral-400 hover:text-white">
+        <Icon name="chevronLeft" className="size-4" />
+        Pesquisas
+      </button>
       <Card title={watch ? "Editar pesquisa" : "Nova pesquisa"}>
         <div className="space-y-3">
           <Field label="Nome" required value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: RTX 3070" />
@@ -228,7 +234,7 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
           <Field label="Máximo €" inputMode="decimal" value={d.price_max} onChange={(e) => set({ price_max: e.target.value })} />
           <Field label="Alvo €" inputMode="decimal" value={d.target_price} onChange={(e) => set({ target_price: e.target.value })} />
         </div>
-        <p className="mt-2 text-xs text-slate-500">Fora do mínimo/máximo é ignorado. O preço-alvo é o que consideras um negócio muito bom: pesa muito na pontuação (junto com a mediana dos últimos 30 dias).</p>
+        <p className="mt-2 text-xs text-neutral-500">Fora do mínimo/máximo é ignorado. O preço-alvo é o que consideras um negócio muito bom: pesa muito na pontuação (junto com a mediana dos últimos 30 dias).</p>
       </Card>
 
       <Card title="Onde procurar">

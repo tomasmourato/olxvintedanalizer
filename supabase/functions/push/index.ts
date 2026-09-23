@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       ? new Date(input.heartbeat_at).toLocaleString("pt-PT", { timeZone: input.timezone || "Europe/Lisbon", dateStyle: "short", timeStyle: "short" })
       : null;
     return json(await send("worker_offline", {
-      title: "⚠️ Worker offline",
+      title: "Worker offline",
       body: since ? `Sem sinal desde ${since}. Vê se o PC está ligado e o worker a correr.` : "O worker ainda não deu sinal hoje.",
       url: "/",
       tag: "worker-offline",
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
   const { data } = token ? await db.auth.getUser(token) : { data: { user: null } };
   if (!data.user) return json({ error: "não autenticado" }, 401);
   return json(await send("test", {
-    title: "Push de teste ✅",
+    title: "Push de teste",
     body: "As notificações estão a funcionar neste dispositivo.",
     url: "/",
     tag: "test",

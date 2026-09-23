@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { Tier } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { must, useDebounced, useNow, useQuery, useRealtime, useStored } from "../lib/live";
 import { ago, euros, pct, sourceLabel } from "../lib/format";
-import { Badge, Empty, Loading, Select, type Tone } from "../components/ui";
+import { Badge, Empty, Icon, Loading, Select, type Tone } from "../components/ui";
+import type { IconName } from "../components/icons";
 
 const SELECT = `id, price, median_price, discount_pct, score, tier, reason, red_flags, ai_status, notified, created_at, updated_at,
   listing:listings!inner(id, source, title, price, previous_price, url, photo_url, location, country),
@@ -14,11 +15,11 @@ type Period = keyof typeof PERIODS;
 type Filters = { period: Period; source: "all" | "olx" | "vinted"; watch: string; sort: "score" | "discount" | "date"; group: "tier" | "category"; closed: string[] };
 
 const TIERS: { tier: Tier; title: string }[] = [
-  { tier: "imperdivel", title: "🔥 Imperdíveis" },
-  { tier: "bom", title: "👍 Bons" },
+  { tier: "imperdivel", title: "Imperdíveis" },
+  { tier: "bom", title: "Bons" },
   { tier: "normal", title: "Resto" },
 ];
-const tierTone: Record<Tier, Tone> = { imperdivel: "orange", bom: "emerald", normal: "slate" };
+const tierTone: Record<Tier, Tone> = { imperdivel: "invert", bom: "outline", normal: "neutral" };
 
 async function loadDeals(period: Period) {
   const since = new Date(Date.now() - PERIODS[period] * 86_400_000).toISOString();
@@ -71,18 +72,16 @@ export default function Deals() {
       {!data ? (
         <Loading error={error} />
       ) : groups.every((g) => !g.rows.length) ? (
-        <Empty>Sem negócios neste período.</Empty>
+        <Empty icon="tag">Sem negócios neste período.</Empty>
       ) : (
         groups.map(
           (g) =>
             g.rows.length > 0 && (
               <section key={g.key}>
-                <button type="button" onClick={() => flip(g.key)} className="mb-2 flex w-full items-center gap-2 text-left font-semibold">
-                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className={`size-4 text-slate-500 transition-transform ${isOpen(g.key) ? "rotate-90" : ""}`}>
-                    <path d="M7.2 4.2a.75.75 0 0 1 1.06 0l5.25 5.25a.75.75 0 0 1 0 1.06l-5.25 5.25a.75.75 0 1 1-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 0 1 0-1.06Z" />
-                  </svg>
+                <button type="button" onClick={() => flip(g.key)} className="mb-2 flex w-full items-center gap-2 py-1 text-left font-semibold tracking-tight">
+                  <Icon name="chevronRight" strokeWidth={2} className={`size-4 text-neutral-500 transition-transform ${isOpen(g.key) ? "rotate-90" : ""}`} />
                   {g.title}
-                  <span className="text-sm font-normal text-slate-500">{g.rows.length}</span>
+                  <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs font-medium text-neutral-300 tabular-nums">{g.rows.length}</span>
                 </button>
                 {isOpen(g.key) && (
                   <div className="space-y-2">
@@ -109,39 +108,56 @@ function DealCard({ d, now }: { d: Deal; now: number }) {
       href={l.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3 transition-colors hover:border-slate-600"
+      className="flex gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 transition-colors hover:border-neutral-600 active:bg-neutral-900"
     >
       {l.photo_url ? (
-        <img src={l.photo_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-20 shrink-0 rounded-lg bg-slate-800 object-cover" />
+        <img src={l.photo_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-20 shrink-0 rounded-xl bg-neutral-900 object-cover" />
       ) : (
-        <div className="size-20 shrink-0 rounded-lg bg-slate-800" />
+        <div className="size-20 shrink-0 rounded-xl bg-neutral-900" />
       )}
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="line-clamp-2 text-sm font-medium text-slate-100">{l.title}</p>
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-lg font-bold text-white">{euros(l.price)}</span>
-          {dropped && <span className="text-sm text-slate-500 line-through">{euros(l.previous_price)}</span>}
-          {d.median_price != null && <span className="text-xs text-slate-400">mediana {euros(d.median_price)}</span>}
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-snug font-medium text-neutral-100">{l.title}</p>
+          <Badge tone={tierTone[d.tier as Tier]}>
+            {d.score ?? "—"}
+            <span className="-ml-1 opacity-60">/100</span>
+          </Badge>
         </div>
-        <div className="flex flex-wrap gap-1">
-          <Badge tone={tierTone[d.tier as Tier]}>{d.score ?? "—"}/100</Badge>
-          {discount > 0 && <Badge tone="emerald">−{pct(discount)}</Badge>}
-          {dropped && <Badge tone="sky">📉 baixou</Badge>}
+        <div className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+          <span className="text-xl font-bold tracking-tight text-white">{euros(l.price)}</span>
+          {dropped && <span className="text-sm text-neutral-500 line-through">{euros(l.previous_price)}</span>}
+          {d.median_price != null && <span className="text-xs text-neutral-500">mediana {euros(d.median_price)}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {discount > 0 && <Badge tone="outline">−{pct(discount)}</Badge>}
           <Badge>{sourceLabel[l.source as keyof typeof sourceLabel]}</Badge>
-          {d.notified && <Badge tone="sky">🔔 avisado</Badge>}
+          {dropped && <Tag icon="trendingDown">baixou</Tag>}
+          {d.notified && <Tag icon="bell">avisado</Tag>}
         </div>
-        {d.reason && <p className="text-xs text-slate-300">{d.reason}</p>}
+        {d.reason && <p className="text-xs leading-relaxed text-neutral-400">{d.reason}</p>}
         {d.red_flags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <ul className="space-y-0.5">
             {d.red_flags.map((r) => (
-              <Badge key={r} tone="rose">⚠ {r}</Badge>
+              <li key={r} className="flex items-start gap-1 text-xs text-rose-400">
+                <Icon name="warning" className="mt-px size-3.5" />
+                {r}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-        <p className="truncate text-xs text-slate-500">
+        <p className="truncate text-xs text-neutral-500">
           {[d.watch.name, ago(d.updated_at, now), l.location, l.country && l.country !== "PT" ? l.country : null].filter(Boolean).join(" · ")}
         </p>
       </div>
     </a>
+  );
+}
+
+function Tag({ icon, children }: { icon: IconName; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-neutral-300">
+      <Icon name={icon} className="size-3.5" />
+      {children}
+    </span>
   );
 }

@@ -21,15 +21,15 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#020617",
-        theme_color: "#0f172a",
+        background_color: "#000000",
+        theme_color: "#000000",
         icons: [
           { src: "pwa-192.png", sizes: "192x192", type: "image/png" },
           { src: "pwa-512.png", sizes: "512x512", type: "image/png" },
           { src: "maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      injectManifest: { globPatterns: ["**/*.{js,css,html,svg}", "badge-96.png"] }, // + the manifest icons
+      injectManifest: { globPatterns: ["**/*.{js,css,html,svg}", "badge-96.png", "**/inter-latin*-wght-normal-*.woff2"] }, // + the manifest icons; only the Latin font files
     }),
   ],
 });
