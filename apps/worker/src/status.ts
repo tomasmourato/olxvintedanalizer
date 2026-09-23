@@ -1,9 +1,10 @@
 // Runs log (one row per request) and the worker heartbeat.
 import type { Insert, Source } from "@dh/shared";
+import pkg from "../package.json" with { type: "json" };
 import { db } from "./db.js";
 import { errorText, flags, log } from "./util.js";
 
-export const VERSION = process.env.npm_package_version ?? "dev";
+export const VERSION = pkg.version; // npm_package_version is unset under pm2
 
 export function logRun(run: Insert<"runs">): void {
   if (flags.dryRun) return;
