@@ -69,7 +69,7 @@ function WorkerCard({ worker: w, settings: s, now }: { worker: WorkerStatus | nu
 
   return (
     <Card title="Worker" actions={<Badge tone={online ? "ok" : "danger"}><Dot on={online} />{online ? "Online" : "Offline"}</Badge>}>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
         <dt className="text-neutral-500">Último sinal</dt>
         <dd>{w?.heartbeat_at ? `${ago(w.heartbeat_at, now)} (${when(w.heartbeat_at, true)})` : "nunca"}</dd>
         {w?.started_at && (
@@ -95,8 +95,8 @@ function WorkerCard({ worker: w, settings: s, now }: { worker: WorkerStatus | nu
         {w?.last_error && (
           <>
             <dt className="text-neutral-500">Último erro</dt>
-            <dd className="break-words text-rose-300">
-              {w.last_error}
+            <dd className="wrap-anywhere text-rose-300">
+              {w.last_error.split("\n")[0]}
               {w.last_error_at && <span className="text-neutral-500"> · {ago(w.last_error_at, now)}</span>}
             </dd>
           </>
@@ -160,7 +160,7 @@ function RunRow({ r }: { r: Run }) {
           .filter(Boolean)
           .join(" · ")}
       </p>
-      {r.error && <p className="mt-0.5 text-xs break-words text-rose-300">{r.error}</p>}
+      {r.error && <p className="mt-0.5 text-xs wrap-anywhere text-rose-300">{r.error}</p>}
     </li>
   );
 }

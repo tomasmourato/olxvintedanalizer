@@ -56,7 +56,7 @@ function Shell({ email }: { email: string }) {
   }, [tab.path, id]);
 
   return (
-    <div className="min-h-dvh overflow-x-clip bg-black text-neutral-100">
+    <div className="min-h-dvh bg-black text-neutral-100">
       <PullToRefresh />
       <header className="sticky top-0 z-20 border-b border-neutral-900 bg-black/80 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">

@@ -51,14 +51,14 @@ function NotificationRow({ n }: { n: Notification }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <p className="min-w-0 flex-1 text-sm font-medium break-words text-neutral-100">{n.title}</p>
+            <p className="min-w-0 flex-1 text-sm font-medium wrap-anywhere text-neutral-100">{n.title}</p>
             {n.status === "sent" ? <Badge>Enviada</Badge> : n.status === "partial" ? <Badge tone="outline">Parcial</Badge> : <Badge tone="danger">Falhou</Badge>}
           </div>
-          {n.body && <p className="mt-1 text-xs whitespace-pre-line text-neutral-400">{n.body}</p>}
+          {n.body && <p className="mt-1 text-xs whitespace-pre-line wrap-anywhere text-neutral-400">{n.body}</p>}
           <p className="mt-1 text-xs text-neutral-500">
             {[when(n.created_at, true), devices, n.latency_ms != null && n.match_id != null && `${ms(n.latency_ms)} após a deteção`].filter(Boolean).join(" · ")}
           </p>
-          {n.error && <p className="mt-1 text-xs break-words text-rose-300">{n.error}</p>}
+          {n.error && <p className="mt-1 text-xs wrap-anywhere text-rose-300">{n.error}</p>}
         </div>
       </div>
     </>

@@ -115,7 +115,7 @@ function DealCard({ d, now }: { d: Deal; now: number }) {
       ) : (
         <div className="size-20 shrink-0 rounded-xl bg-neutral-900" />
       )}
-      <div className="min-w-0 flex-1 space-y-1.5">
+      <div className="min-w-0 flex-1 space-y-1.5 wrap-anywhere">
         <div className="flex items-start gap-2">
           <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-snug font-medium text-neutral-100">{l.title}</p>
           <Badge tone={tierTone[d.tier as Tier]}>
