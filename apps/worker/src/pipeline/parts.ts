@@ -14,7 +14,7 @@ const AMD = new Set([
   460, 470, 480, 550, 560, 570, 580, 590, 5500, 5600, 5700, 6400, 6500, 6600, 6650, 6700, 6750,
   6800, 6900, 6950, 7600, 7700, 7800, 7900, 9060, 9070,
 ]);
-const GPU_SUFFIX: Record<string, string> = { ti: "Ti", super: "Super", xt: "XT", xtx: "XTX", gre: "GRE" };
+const GPU_SUFFIX: Record<string, string> = { ti: "Ti", super: "Super", "ti-super": "Ti Super", xt: "XT", xtx: "XTX", gre: "GRE" };
 // Chipset = the motherboard's price class; the optional letter is the form factor or revision (B450M, X570S).
 const CHIPSETS =
   "a320|a520|a620|b350|b450|b550|b650|b840|b850|x370|x470|x570|x670|x870|h310|b360|b365|h370|z370|z390|" +
@@ -53,8 +53,9 @@ function bucket(value: number, sizes: number[]): number | null {
 
 function gpus(t: string): Part[] {
   const out: Part[] = [];
-  for (const m of t.matchAll(/(?<![a-z0-9])(gtx|rtx|rx)? ?(\d{3,4}) ?(ti|super|xtx|xt|gre)?(?![a-z0-9])/g)) {
-    const [, prefix, num, suffix] = m;
+  for (const m of t.matchAll(/(?<![a-z0-9])(gtx|rtx|rx)? ?(\d{3,4}) ?(ti ?super|ti|super|xtx|xt|gre)?(?![a-z0-9])/g)) {
+    const [, prefix, num, raw] = m;
+    const suffix = raw?.replace(/^ti ?super$/, "ti-super");
     const n = Number(num);
     let fam: string;
     if (prefix === "rx" || (!prefix && AMD.has(n) && /\bradeon\b/.test(t))) {

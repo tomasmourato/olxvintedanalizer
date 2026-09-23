@@ -1,11 +1,12 @@
 // Pesquisas → Preços das peças: the market value the worker computes per part (pipeline/prices.ts),
 // and the friend's own value, which wins when set.
 import { useEffect, useMemo, useState } from "react";
-import type { Row } from "@dh/shared";
+import { partWatch, type Row } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useNow, useQuery, useRealtime } from "../lib/live";
 import { ago, euros, parsePrice, priceText } from "../lib/format";
 import { Card, Empty, Icon, Loading, Select } from "../components/ui";
+import { newWatchFor } from "./Watches";
 
 type Price = Row<"part_prices">;
 
@@ -24,12 +25,15 @@ const TYPES: [string, string][] = [
 const squash = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 async function loadPrices() {
-  return must(await supabase.from("part_prices").select("*").limit(5000));
+  const [prices, watches] = await Promise.all([supabase.from("part_prices").select("*").limit(5000), supabase.from("watches").select("id, name")]);
+  return { prices: must(prices), watches: must(watches) };
 }
 
 export default function Prices() {
   const q = useQuery(loadPrices, []);
-  useRealtime("part_prices", useDebounced(q.reload));
+  const reload = useDebounced(q.reload);
+  useRealtime("part_prices", reload);
+  useRealtime("watches", reload);
   const now = useNow();
   const [type, setType] = useState("all");
   const [search, setSearch] = useState("");
@@ -37,14 +41,16 @@ export default function Prices() {
   const groups = useMemo(() => {
     const s = squash(search);
     // Without a search, only parts with a value; searching also finds the rare ones (to give them a value).
-    const rows = (q.data ?? [])
+    const rows = (q.data?.prices ?? [])
       .filter((p) => (type === "all" || p.type === type) && (s ? squash(p.label).includes(s) : p.market_value != null || p.manual_value != null))
       .sort((a, b) => a.label.localeCompare(b.label, "pt", { numeric: true }));
     return TYPES.map(([t, title]) => ({ type: t, title, rows: rows.filter((p) => p.type === t) })).filter((g) => g.rows.length);
   }, [q.data, type, search]);
 
   if (!q.data) return <Loading error={q.error} />;
-  const last = q.data.reduce<string | null>((m, p) => (p.market_at && (!m || p.market_at > m) ? p.market_at : m), null);
+  // A watch named like the part ("GTX 1660 Super") counts as that part's watch.
+  const watchByName = new Map(q.data.watches.map((w) => [squash(w.name), w.id]));
+  const last = q.data.prices.reduce<string | null>((m, p) => (p.market_at && (!m || p.market_at > m) ? p.market_at : m), null);
 
   return (
     <div className="space-y-4">
@@ -85,7 +91,7 @@ export default function Prices() {
           <h2 className="mb-2 font-semibold tracking-tight">{g.title}</h2>
           <ul className="space-y-2">
             {g.rows.map((p) => (
-              <PriceRow key={p.key} p={p} onSaved={q.reload} />
+              <PriceRow key={p.key} p={p} watchId={watchByName.get(squash(p.label))} onSaved={q.reload} />
             ))}
           </ul>
         </section>
@@ -94,7 +100,7 @@ export default function Prices() {
   );
 }
 
-function PriceRow({ p, onSaved }: { p: Price; onSaved: () => void }) {
+function PriceRow({ p, watchId, onSaved }: { p: Price; watchId?: string; onSaved: () => void }) {
   const [text, setText] = useState(priceText(p.manual_value));
   const [status, setStatus] = useState<{ saving?: boolean; error?: string }>({});
   useEffect(() => setText(priceText(p.manual_value)), [p.manual_value]);
@@ -113,6 +119,7 @@ function PriceRow({ p, onSaved }: { p: Price; onSaved: () => void }) {
     onSaved();
   }
 
+  const watch = watchId ? null : partWatch(p, p.manual_value ?? p.market_value);
   const market =
     p.market_value != null
       ? `mercado ${euros(p.market_value)} · ${p.samples} anúncio${p.samples === 1 ? "" : "s"}${p.market_scope === "eu" ? " (UE)" : ""}`
@@ -123,6 +130,16 @@ function PriceRow({ p, onSaved }: { p: Price; onSaved: () => void }) {
         <p className="truncate font-medium text-neutral-100">{p.label}</p>
         <p className="text-xs text-neutral-500">{market}</p>
         {status.error && <p className="text-xs wrap-anywhere text-rose-400">{status.error}</p>}
+        {(watchId || watch) && (
+          <button
+            type="button"
+            onClick={() => (watchId ? go(`pesquisas/${watchId}`) : newWatchFor(watch!))}
+            className="mt-2 inline-flex items-center gap-1 rounded-full border border-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-500 active:bg-neutral-900"
+          >
+            <Icon name={watchId ? "search" : "plus"} className="size-3.5" strokeWidth={2} />
+            {watchId ? "Ver pesquisa" : "Criar pesquisa"}
+          </button>
+        )}
       </div>
       <label className="w-24 shrink-0 text-right">
         <span className="sr-only">O meu valor para {p.label} em euros</span>

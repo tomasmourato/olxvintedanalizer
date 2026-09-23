@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from "react";
-import type { Insert, Source, Watch } from "@dh/shared";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import type { Insert, PartWatch, Source, Watch } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useQuery, useRealtime } from "../lib/live";
 import { CATEGORIES } from "../lib/categories";
@@ -133,7 +133,14 @@ type Draft = Required<Omit<Insert<"watches">, "price_min" | "price_max" | "targe
 };
 
 
-function toDraft(w?: Watch): Draft {
+// Pesquisas → Preços das peças hands a part's watch to the "Nova pesquisa" form (cleared when the form closes).
+let preset: PartWatch | null = null;
+export function newWatchFor(p: PartWatch) {
+  preset = p;
+  go("pesquisas/nova");
+}
+
+function toDraft(w?: Partial<Watch>): Draft {
   return {
     name: w?.name ?? "",
     category: w?.category ?? "",
@@ -154,7 +161,9 @@ function toDraft(w?: Watch): Draft {
 }
 
 function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: string[]; onDone: () => void }) {
-  const [d, setD] = useState<Draft>(() => toDraft(watch));
+  const [fromPart] = useState(() => (watch ? null : preset));
+  const [d, setD] = useState<Draft>(() => toDraft(watch ?? fromPart ?? undefined));
+  useEffect(() => () => void (preset = null), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Draft>) => setD((prev) => ({ ...prev, ...patch }));
@@ -208,6 +217,12 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
         Pesquisas
       </button>
       <Card title={watch ? "Editar pesquisa" : "Nova pesquisa"}>
+        {fromPart && (
+          <p className="mb-3 text-sm text-neutral-400">
+            Preenchida a partir de Preços das peças: as palavras apanham este modelo e deixam de fora os parecidos (ex.: a 3060 sem a 3060 Ti), e os
+            preços são cerca de 70 % (Bom) e 55 % (Imperdível) do valor da peça. Confirma e guarda.
+          </p>
+        )}
         <div className="space-y-3">
           <Field label="Nome" required value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: RTX 3070" />
           <Field label="Grupo" list="watch-categories" value={d.category} onChange={(e) => set({ category: e.target.value })} placeholder="Ex.: Placas gráficas" hint="Só serve para arrumar as pesquisas e os negócios na app." />

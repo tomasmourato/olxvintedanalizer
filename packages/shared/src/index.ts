@@ -20,3 +20,4 @@ export type Tier = "imperdivel" | "bom" | "normal";
 export type { PushKind, PushPayload } from "./push.js";
 export { clockIn, isActive } from "./time.js";
 export { fmtEuros, fmtNumber } from "./format.js";
+export { partWatch, type PartRef, type PartWatch } from "./partWatch.js";
