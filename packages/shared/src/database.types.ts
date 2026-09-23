@@ -117,6 +117,7 @@ export type Database = {
           ai_status: string
           created_at: string
           discount_pct: number | null
+          dismissed_at: string | null
           id: number
           listing_id: number
           median_price: number | null
@@ -135,6 +136,7 @@ export type Database = {
           ai_status?: string
           created_at?: string
           discount_pct?: number | null
+          dismissed_at?: string | null
           id?: never
           listing_id: number
           median_price?: number | null
@@ -153,6 +155,7 @@ export type Database = {
           ai_status?: string
           created_at?: string
           discount_pct?: number | null
+          dismissed_at?: string | null
           id?: never
           listing_id?: number
           median_price?: number | null

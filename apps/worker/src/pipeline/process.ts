@@ -36,7 +36,7 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         previousPrice,
         describe: source === "vinted" ? () => describeVinted(entry) : undefined,
       });
-      const matchId = await saveMatch(e.row);
+      const { id: matchId, dismissed } = await saveMatch(e.row);
       matches++;
       const drop = previousPrice != null ? ` (baixou de ${previousPrice} €)` : "";
       const ai = e.ai ? ` [IA ${e.ai.status}${e.ai.status === "ok" ? "" : `: ${e.ai.error}`}, ${e.ai.ms} ms]` : "";
@@ -44,8 +44,8 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         `${silent ? "[silencioso] " : ""}match ${source} "${l.title}" ${l.price ?? "?"} €${drop} → ${watch.name}: ` +
           `${e.row.score} ${e.tier}${ai} — ${e.row.reason}`,
       );
-      if (e.held) {
-        if (e.tier === "imperdivel") log(`sem push (${e.held}): ${l.title}`);
+      if (e.held || dismissed) {
+        if (e.tier === "imperdivel") log(`sem push (${e.held ?? "apagado na app"}): ${l.title}`);
       } else if (!pushed) {
         pushed = true;
         await notify(matchId, dealPayload(l, entry.id, watch.name, e.row, previousPrice), previousPrice != null, detectedAt);
@@ -102,11 +102,12 @@ async function enrich<T>(scope: string, fn: () => Promise<Enrichment<T>>): Promi
   }
 }
 
-async function saveMatch(row: Insert<"matches">): Promise<number | null> {
-  if (flags.dryRun) return null;
-  const { data, error } = await db.from("matches").upsert(row, { onConflict: "listing_id,watch_id" }).select("id").single();
+/** Upserts the evaluation; dismissed_at is not in the row, so a deal deleted in the app stays deleted. */
+async function saveMatch(row: Insert<"matches">): Promise<{ id: number | null; dismissed: boolean }> {
+  if (flags.dryRun) return { id: null, dismissed: false };
+  const { data, error } = await db.from("matches").upsert(row, { onConflict: "listing_id,watch_id" }).select("id, dismissed_at").single();
   if (error) throw new Error(`matches upsert: ${error.message}`);
-  return data.id;
+  return { id: data.id, dismissed: data.dismissed_at != null };
 }
 
 async function notify(matchId: number | null, payload: PushPayload, drop: boolean, detectedAt: number): Promise<void> {

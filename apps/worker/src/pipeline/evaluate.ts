@@ -9,7 +9,7 @@ const MEDIAN_DAYS = 30;
 const MEDIAN_TTL_MS = 5 * 60_000;
 const medianCache = new Map<string, { at: number; rows: { listing_id: number; price: number }[] }>();
 
-/** Median price of the watch's matches over the last 30 days, excluding this listing. */
+/** Median price of the watch's matches over the last 30 days, excluding this listing and deleted deals. */
 async function watchMedian(watchId: string, listingId: number): Promise<number | null> {
   let c = medianCache.get(watchId);
   if (!c || Date.now() - c.at > MEDIAN_TTL_MS) {
@@ -20,6 +20,7 @@ async function watchMedian(watchId: string, listingId: number): Promise<number |
       .eq("watch_id", watchId)
       .gte("created_at", since)
       .not("price", "is", null)
+      .is("dismissed_at", null) // deleted in the app: usually junk (empty boxes), would drag the median down
       .limit(5000);
     if (error) throw new Error(`median lookup: ${error.message}`);
     c = { at: Date.now(), rows: data.map((r) => ({ listing_id: r.listing_id, price: Number(r.price) })) };
