@@ -19,6 +19,7 @@ const watch = (over: Partial<Watch> = {}): Watch => ({
   price_min: null,
   price_max: 250,
   target_price: 180,
+  good_price: null,
   context: "",
   active: true,
   created_at: "",

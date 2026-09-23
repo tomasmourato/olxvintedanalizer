@@ -5,7 +5,7 @@ import { errorText, must, useQuery } from "../lib/live";
 import { CATEGORIES, categoryName } from "../lib/categories";
 import { ago, when } from "../lib/format";
 import { currentEndpoint } from "../lib/push";
-import { Badge, Button, Card, Field, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
+import { Badge, Button, Card, Field, Icon, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
 import PushCard from "../components/PushCard";
 import Account from "./Account";
 
@@ -129,12 +129,21 @@ function SettingsForm({ settings, onSaved }: { settings: SettingsRow; onSaved: (
             placeholder="Ex.: Compro peças para montar e revender PCs gaming. Um bom negócio é poder revender com 30 % de margem. Prefiro vendedores perto de Lisboa. Desconfio de preços muito abaixo do mercado."
             hint="A IA lê isto em todas as avaliações, junto com o contexto de cada pesquisa."
           />
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Bom a partir de" type="number" inputMode="numeric" min={0} max={100} value={d.candidate_threshold} onChange={(e) => set({ candidate_threshold: e.target.value })} hint="Pontuação (0–100). Estes vão à IA." />
-            <Field label="Imperdível a partir de" type="number" inputMode="numeric" min={0} max={100} value={d.notify_threshold} onChange={(e) => set({ notify_threshold: e.target.value })} hint="Estes mandam push." />
-          </div>
           <Toggle label="Usar IA (Gemini)" hint="Desligada, a pontuação vem só das regras de preço." checked={d.ai_enabled} onChange={(ai_enabled) => set({ ai_enabled })} />
           <Toggle label="Enviar notificações" hint="Desligada, não sai nenhum push (nem o aviso de worker offline). Os negócios continuam a aparecer na app." checked={d.push_enabled} onChange={(push_enabled) => set({ push_enabled })} />
+          <details className="group rounded-xl border border-neutral-800 px-3 py-2.5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm text-neutral-300 [&::-webkit-details-marker]:hidden">
+              Avançado: pontuação 0–100
+              <Icon name="chevronRight" className="size-4 text-neutral-500 transition-transform group-open:rotate-90" />
+            </summary>
+            <p className="mt-2 text-xs text-neutral-500">
+              Só conta nas pesquisas sem preços em € (Imperdível até / Bom até): nessas, o nível vem da pontuação das regras e da IA. Nas outras, a IA trava os anúncios com pontuação abaixo de Bom.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Field label="Bom a partir de" type="number" inputMode="numeric" min={0} max={100} value={d.candidate_threshold} onChange={(e) => set({ candidate_threshold: e.target.value })} hint="Estes vão à IA." />
+              <Field label="Imperdível a partir de" type="number" inputMode="numeric" min={0} max={100} value={d.notify_threshold} onChange={(e) => set({ notify_threshold: e.target.value })} hint="Estes mandam push." />
+            </div>
+          </details>
         </div>
       </Card>
 

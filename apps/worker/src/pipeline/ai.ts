@@ -3,7 +3,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { Settings, Watch } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
-import type { RuleResult } from "./score.js";
+import { priceTier, type RuleResult } from "./score.js";
 
 // Flash-Lite answers in ~1 s; gemini-3.8-flash took 4 s+ even with thinking "low" (measured 2026-09-22).
 const MODEL = "gemini-3.5-flash-lite";
@@ -51,7 +51,7 @@ export function systemPrompt(s: Pick<Settings, "candidate_threshold" | "notify_t
     `- ${s.candidate_threshold}–${s.notify_threshold - 1} bom: preço justo ou um pouco abaixo.`,
     `- 0–${s.candidate_threshold - 1} normal: preço de mercado ou acima, ou não serve.`,
     "Baixa muito a pontuação se: for só um acessório, caixa vazia, cabo, suporte ou peça que apenas menciona o modelo; estiver avariado, para peças ou bloqueado; for um pedido de compra (procuro/compro) ou troca; não corresponder ao que a pesquisa procura; tiver sinais de burla (preço irrealista, pagamento fora da plataforma, fotos de catálogo).",
-    "Usa o teu conhecimento dos preços atuais de mercado em Portugal. O preço-alvo é o máximo que o revendedor quer pagar; a mediana é a dos anúncios desta pesquisa nos últimos 30 dias.",
+    "Usa o teu conhecimento dos preços atuais de mercado em Portugal. Os preços «imperdível até» e «bom até» são os limites que o revendedor definiu para a pesquisa; a mediana é a dos anúncios desta pesquisa nos últimos 30 dias.",
     "Vendedores de outros países são aceitáveis (o Vinted envia para Portugal): não penalizes só por isso, apenas se exigirem entrega em mão ou pagamento fora da plataforma.",
     "Responde em português de Portugal, com acentos.",
     s.global_context.trim() && `Contexto do revendedor:\n${s.global_context.trim()}`,
@@ -60,12 +60,16 @@ export function systemPrompt(s: Pick<Settings, "candidate_threshold" | "notify_t
     .join("\n");
 }
 
-export function userPrompt({ listing: l, watch: w, rules, median, previousPrice }: AiInput): string {
+const TIER_LABEL = { imperdivel: "imperdível", bom: "bom", normal: "normal" } as const;
+
+export function userPrompt({ listing: l, watch: w, settings, rules, median, previousPrice }: AiInput): string {
   const desc = l.description?.trim().slice(0, MAX_DESCRIPTION);
+  const byPrice = priceTier(l.price, w);
   return [
     `Pesquisa: ${w.name}${w.category ? ` (${w.category})` : ""}`,
     w.context.trim() && `Contexto da pesquisa: ${w.context.trim()}`,
-    w.target_price != null && `Preço-alvo: ${w.target_price} €`,
+    w.target_price != null && `Imperdível até: ${w.target_price} €`,
+    w.good_price != null && `Bom até: ${w.good_price} €`,
     median != null && `Mediana 30 dias: ${median} €`,
     "",
     `Anúncio (${l.source === "olx" ? "OLX" : "Vinted"}): ${l.title}`,
@@ -78,6 +82,8 @@ export function userPrompt({ listing: l, watch: w, rules, median, previousPrice 
     desc ? `Descrição:\n${desc}` : "Sem descrição.",
     "",
     `Regras: ${rules.score}/100 (${rules.notes.join("; ")})`,
+    byPrice &&
+      `Pelo preço, este anúncio é ${TIER_LABEL[byPrice]}: o nível vem do preço. Verifica só se é mesmo o produto da pesquisa, a funcionar e sem sinais de burla. Se não for, dá menos de ${settings.candidate_threshold}; se for, dá ${settings.candidate_threshold} ou mais.`,
   ]
     .filter((x) => x !== false && x !== null && x !== undefined && x !== "")
     .join("\n");

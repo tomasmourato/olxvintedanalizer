@@ -387,6 +387,7 @@ export type Database = {
           context: string
           created_at: string
           exclude: string[]
+          good_price: number | null
           id: string
           include_all: string[]
           include_any: string[]
@@ -406,6 +407,7 @@ export type Database = {
           context?: string
           created_at?: string
           exclude?: string[]
+          good_price?: number | null
           id?: string
           include_all?: string[]
           include_any?: string[]
@@ -425,6 +427,7 @@ export type Database = {
           context?: string
           created_at?: string
           exclude?: string[]
+          good_price?: number | null
           id?: string
           include_all?: string[]
           include_any?: string[]
@@ -479,6 +482,7 @@ export type Database = {
     }
     Functions: {
       purge_old_data: { Args: never; Returns: undefined }
+      worker_watchdog: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

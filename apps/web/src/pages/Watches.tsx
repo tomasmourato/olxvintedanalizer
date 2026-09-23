@@ -105,18 +105,21 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
 function summary(w: Watch): string {
   const terms = w.include_any.length ? w.include_any.join(", ") : w.include_all.length ? w.include_all.join(" + ") : "qualquer título";
   const prices = [
-    w.target_price != null && `alvo ${euros(w.target_price)}`,
+    w.target_price != null && `imperdível até ${euros(w.target_price)}`,
+    w.good_price != null && `bom até ${euros(w.good_price)}`,
     w.price_min != null && `mín. ${euros(w.price_min)}`,
     w.price_max != null && `máx. ${euros(w.price_max)}`,
   ].filter(Boolean);
   return [terms, ...prices].join(" · ");
 }
 
-type Draft = Required<Omit<Insert<"watches">, "price_min" | "price_max" | "target_price" | "id" | "created_at" | "updated_at">> & {
+// target_price is "Imperdível até", good_price is "Bom até".
+type Draft = Required<Omit<Insert<"watches">, "price_min" | "price_max" | "target_price" | "good_price" | "id" | "created_at" | "updated_at">> & {
   sources: Source[];
   price_min: string;
   price_max: string;
   target_price: string;
+  good_price: string;
 };
 
 const priceText = (n: number | null) => (n == null ? "" : String(n).replace(".", ","));
@@ -135,6 +138,7 @@ function toDraft(w?: Watch): Draft {
     price_min: priceText(w?.price_min ?? null),
     price_max: priceText(w?.price_max ?? null),
     target_price: priceText(w?.target_price ?? null),
+    good_price: priceText(w?.good_price ?? null),
     context: w?.context ?? "",
     active: w?.active ?? true,
   };
@@ -165,12 +169,14 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
         category: d.category.trim() || "Outros",
         price_min: parsePrice(d.price_min, "Preço mínimo"),
         price_max: parsePrice(d.price_max, "Preço máximo"),
-        target_price: parsePrice(d.target_price, "Preço-alvo"),
+        target_price: parsePrice(d.target_price, "Imperdível até"),
+        good_price: parsePrice(d.good_price, "Bom até"),
       };
       if (!row.name) throw new Error("Dá um nome à pesquisa.");
       if (!row.sources.length) throw new Error("Escolhe pelo menos uma fonte.");
       if (!row.include_any.length && !row.include_all.length) throw new Error("Põe pelo menos uma palavra (senão apanha todos os anúncios).");
       if (row.price_min != null && row.price_max != null && row.price_min > row.price_max) throw new Error("O preço mínimo é maior do que o máximo.");
+      if (row.target_price != null && row.good_price != null && row.target_price > row.good_price) throw new Error("O preço de \"Imperdível até\" tem de ser menor ou igual ao de \"Bom até\".");
       setBusy(true);
       const { error } = watch ? await supabase.from("watches").update(row).eq("id", watch.id) : await supabase.from("watches").insert(row);
       if (error) throw new Error(error.message);
@@ -229,12 +235,20 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
       </Card>
 
       <Card title="Preço">
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="Mínimo €" inputMode="decimal" value={d.price_min} onChange={(e) => set({ price_min: e.target.value })} />
-          <Field label="Máximo €" inputMode="decimal" value={d.price_max} onChange={(e) => set({ price_max: e.target.value })} />
-          <Field label="Alvo €" inputMode="decimal" value={d.target_price} onChange={(e) => set({ target_price: e.target.value })} />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Imperdível até €" inputMode="decimal" value={d.target_price} onChange={(e) => set({ target_price: e.target.value })} placeholder="ex.: 60" />
+            <Field label="Bom até €" inputMode="decimal" value={d.good_price} onChange={(e) => set({ good_price: e.target.value })} placeholder="ex.: 100" />
+          </div>
+          <p className="text-xs text-neutral-500">
+            Até ao preço de Imperdível manda push; até ao de Bom aparece em Bons. A IA só trava anúncios com problemas (não é o produto, avariado, só a caixa, burla). Sem estes preços, o nível vem da pontuação 0–100 (mediana dos últimos 30 dias e IA).
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Mínimo €" inputMode="decimal" value={d.price_min} onChange={(e) => set({ price_min: e.target.value })} />
+            <Field label="Máximo €" inputMode="decimal" value={d.price_max} onChange={(e) => set({ price_max: e.target.value })} />
+          </div>
+          <p className="text-xs text-neutral-500">Anúncios fora do mínimo/máximo são ignorados.</p>
         </div>
-        <p className="mt-2 text-xs text-neutral-500">Fora do mínimo/máximo é ignorado. O preço-alvo é o que consideras um negócio muito bom: pesa muito na pontuação (junto com a mediana dos últimos 30 dias).</p>
       </Card>
 
       <Card title="Onde procurar">

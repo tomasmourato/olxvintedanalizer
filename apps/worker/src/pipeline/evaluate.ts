@@ -3,7 +3,7 @@ import type { Insert, Settings, Tier, Watch } from "@dh/shared";
 import { db } from "../db.js";
 import type { ScrapedListing } from "../sources/types.js";
 import { aiAvailable, askAi, type AiResult } from "./ai.js";
-import { holdBack, median, ruleScore, rulesOnly, tierFor } from "./score.js";
+import { holdBack, median, priceTier, ruleScore, rulesOnly, tierFor, vetoed } from "./score.js";
 
 const MEDIAN_DAYS = 30;
 const MEDIAN_TTL_MS = 5 * 60_000;
@@ -51,11 +51,12 @@ export type EvaluateInput = {
 export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
   const { listing, listingId, watch, settings, silent, previousPrice } = input;
   const med = await watchMedian(watch.id, listingId);
-  const rules = ruleScore({ price: listing.price, target: watch.target_price, median: med });
+  const rules = ruleScore({ price: listing.price, great: watch.target_price, good: watch.good_price, median: med });
+  const byPrice = priceTier(listing.price, watch);
   remember(watch.id, listingId, listing.price);
 
   // Backfill (silent) never goes to the AI: it is not announced and would burn the free quota.
-  const candidate = rules.score >= settings.candidate_threshold && !silent;
+  const candidate = (byPrice ? byPrice !== "normal" : rules.score >= settings.candidate_threshold) && !silent;
   let ai: AiResult | null = null;
   if (candidate) {
     if (aiAvailable(settings) && !listing.description && input.describe) await input.describe();
@@ -64,7 +65,7 @@ export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
 
   const ok = ai?.status === "ok" ? ai.verdict : null;
   const score = ok ? ok.score : rulesOnly(rules, settings);
-  const tier = tierFor(score, settings);
+  const tier = byPrice ? vetoed(byPrice, ok?.score ?? null, rules.suspicious, settings) : tierFor(score, settings);
   const rulesReason = rules.notes.join("; ");
   const reason = ok ? ok.reason : ai ? `(sem IA) ${rulesReason}` : rulesReason;
   const red_flags = ok ? ok.red_flags : rules.suspicious ? ["preço demasiado baixo"] : [];
