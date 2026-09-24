@@ -1,0 +1,21 @@
+name: Probe
+
+# Manual test: can a datacenter machine (GitHub's runners, Microsoft IPs) read OLX and Vinted like the worker?
+# No database and no secrets; see apps/worker/src/probe.ts. Run it from the Actions tab or `gh workflow run probe.yml`.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/worker
+      - run: npm run probe -w @dh/worker

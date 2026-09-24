@@ -1,4 +1,5 @@
-// OLX: CloudFront rejects non-browser clients, so requests run inside a real (headless) Edge page.
+// OLX: CloudFront rejects non-browser clients, so requests run inside a real headless browser page:
+// Edge on Windows (installed with the OS), Playwright's Chromium elsewhere (a Linux server: `npx playwright install chromium`).
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page } from "playwright";
 import { stripHtml } from "../pipeline/text.js";
@@ -61,7 +62,7 @@ async function ready(): Promise<Page> {
   if (page && Date.now() - loadedAt < RELOAD_EVERY_MS) return page;
   if (!ctx) {
     ctx = await chromium.launchPersistentContext(PROFILE_DIR, {
-      channel: "msedge",
+      channel: process.platform === "win32" ? "msedge" : "chromium", // "chromium" = the full browser, not the headless shell
       headless: true,
       locale: "pt-PT",
       timezoneId: "Europe/Lisbon",

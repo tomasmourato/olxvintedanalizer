@@ -12,7 +12,8 @@
     "once": "tsx src/main.ts --once",
     "dry": "tsx src/main.ts --once --dry-run",
     "test-push": "tsx src/main.ts --test-push",
-    "prices": "tsx src/main.ts --prices"
+    "prices": "tsx src/main.ts --prices",
+    "probe": "tsx src/probe.ts"
   },
   "dependencies": {
     "@dh/shared": "*",
