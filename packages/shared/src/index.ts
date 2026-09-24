@@ -17,6 +17,9 @@ export type PushSubscriptionRow = Row<"push_subscriptions">;
 
 export type Source = "olx" | "vinted";
 export type Tier = "imperdivel" | "bom" | "normal";
+export type WatchKind = "part" | "pc";
+/** One part of a PC deal (matches.parts): its value is the friend's ("manual"), the market median ("mercado") or the AI's estimate ("ia"). */
+export type PcPart = { type: string; label: string; key: string | null; value: number | null; source: "manual" | "mercado" | "ia" | null; samples: number };
 export type { PushKind, PushPayload } from "./push.js";
 export { clockIn, isActive } from "./time.js";
 export { fmtEuros, fmtNumber } from "./format.js";

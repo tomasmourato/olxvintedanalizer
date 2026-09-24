@@ -1,8 +1,11 @@
-// One (listing, watch) match → median, rules score, Gemini for candidates → the matches row + push decision.
+// One (listing, watch) match → the matches row + push decision. Part watches: median, rules score, Gemini for
+// candidates. PC watches (kind "pc"): Gemini names the parts, part_prices values them, the margin sets the tier (pc.ts).
 import type { Insert, Settings, Tier, Watch } from "@dh/shared";
 import { db } from "../db.js";
 import type { ScrapedListing } from "../sources/types.js";
-import { aiAvailable, askAi, type AiResult } from "./ai.js";
+import { aiAvailable, askAi, askPcParts, type AiResult, type PcAiResult } from "./ai.js";
+import { aiParts, mergeParts, pcVeto, priceParts, rulesParts, valuePc } from "./pc.js";
+import { partValues, saveEstimates } from "./prices.js";
 import { holdBack, median, priceTier, ruleScore, rulesOnly, tierFor, vetoed } from "./score.js";
 
 const MEDIAN_DAYS = 30;
@@ -35,7 +38,7 @@ export type Evaluation = {
   tier: Tier;
   /** Null = push it; otherwise why not. */
   held: string | null;
-  ai: AiResult | null;
+  ai: AiResult | PcAiResult | null;
 };
 
 export type EvaluateInput = {
@@ -50,6 +53,7 @@ export type EvaluateInput = {
 };
 
 export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
+  if (input.watch.kind === "pc") return evaluatePc(input);
   const { listing, listingId, watch, settings, silent, previousPrice } = input;
   const med = await watchMedian(watch.id, listingId);
   const rules = ruleScore({ price: listing.price, great: watch.target_price, good: watch.good_price, median: med });
@@ -85,6 +89,53 @@ export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
       reason,
       red_flags,
       ai_status: ai?.status ?? "skipped",
+    },
+    tier,
+    held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),
+    ai,
+  };
+}
+
+/**
+ * A whole PC: every non-silent one goes to the AI (its parts are in the description, and titles like "PC gamer"
+ * say nothing). Without an answer, the parser reads the title and description. The AI can only veto the margin's tier.
+ */
+async function evaluatePc(input: EvaluateInput): Promise<Evaluation> {
+  const { listing, listingId, watch, settings, silent, previousPrice } = input;
+  let ai: PcAiResult | null = null;
+  if (!silent && listing.price != null && listing.price > 0) {
+    if (aiAvailable(settings) && !listing.description && input.describe) await input.describe();
+    ai = await askPcParts({ listing, watch, settings });
+  }
+  const ok = ai?.status === "ok" ? ai.verdict : null;
+  const named = ok ? mergeParts(aiParts(ok.parts), listing.title, listing.description) : rulesParts(listing.title, listing.description);
+  const parts = priceParts(named, await partValues());
+  await saveEstimates(parts);
+  const v = valuePc(parts, listing.price, watch);
+  const veto = ok && pcVeto(ok);
+  const tier = veto ? "normal" : v.suspicious && !ok && v.tier === "imperdivel" ? "bom" : v.tier;
+  const score = veto ? Math.min(v.score, settings.candidate_threshold - 1) : v.score;
+  // The parts value and margin have their own columns; the reason says what else matters.
+  const byRules = "peças lidas do título e da descrição";
+  const reason = [ok ? ok.reason : ai ? `(sem IA) ${byRules}` : byRules, ...v.notes].join("; ");
+  const red_flags = [...(veto ?? []), ...(ok?.red_flags ?? []), ...(v.suspicious && !ok ? ["preço demasiado baixo"] : [])];
+
+  return {
+    row: {
+      listing_id: listingId,
+      watch_id: watch.id,
+      price: listing.price,
+      median_price: null,
+      discount_pct: v.marginPct,
+      rule_score: v.score,
+      ai_score: null,
+      score,
+      tier,
+      reason,
+      red_flags,
+      ai_status: ai?.status ?? "skipped",
+      parts,
+      parts_value: v.partsValue,
     },
     tier,
     held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),

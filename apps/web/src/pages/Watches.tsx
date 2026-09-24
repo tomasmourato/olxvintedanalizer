@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { Insert, PartWatch, Source, Watch } from "@dh/shared";
+import type { Insert, PartWatch, Source, Watch, WatchKind } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useQuery, useRealtime } from "../lib/live";
 import { CATEGORIES } from "../lib/categories";
 import { euros, parsePrice, priceText, sourceLabel } from "../lib/format";
-import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Switch, TagInput, TextArea, Toggle } from "../components/ui";
+import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Segmented, Switch, TagInput, TextArea, Toggle } from "../components/ui";
 
 const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Outros"];
 
@@ -113,18 +113,24 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
 }
 
 function summary(w: Watch): string {
-  const terms = w.include_any.length ? w.include_any.join(", ") : w.include_all.length ? w.include_all.join(" + ") : "qualquer título";
+  const pc = w.kind === "pc";
+  const terms = w.include_any.length ? w.include_any.join(", ") : w.include_all.length ? w.include_all.join(" + ") : pc ? "PC completo" : "qualquer título";
   const prices = [
-    w.target_price != null && `imperdível até ${euros(w.target_price)}`,
-    w.good_price != null && `bom até ${euros(w.good_price)}`,
+    ...(pc
+      ? [w.margin_great != null && `imperdível com margem de ${euros(w.margin_great)}`, w.margin_good != null && `bom com ${euros(w.margin_good)}`]
+      : [w.target_price != null && `imperdível até ${euros(w.target_price)}`, w.good_price != null && `bom até ${euros(w.good_price)}`]),
     w.price_min != null && `mín. ${euros(w.price_min)}`,
     w.price_max != null && `máx. ${euros(w.price_max)}`,
   ].filter(Boolean);
   return [terms, ...prices].join(" · ");
 }
 
-// target_price is "Imperdível até", good_price is "Bom até".
-type Draft = Required<Omit<Insert<"watches">, "price_min" | "price_max" | "target_price" | "good_price" | "id" | "created_at" | "updated_at">> & {
+// target_price is "Imperdível até", good_price is "Bom até"; a PC watch uses the margins instead.
+type Money = "price_min" | "price_max" | "target_price" | "good_price" | "margin_good" | "margin_great";
+type Draft = Required<Omit<Insert<"watches">, Money | "kind" | "id" | "created_at" | "updated_at">> & {
+  kind: WatchKind;
+  margin_good: string;
+  margin_great: string;
   sources: Source[];
   price_min: string;
   price_max: string;
@@ -142,6 +148,9 @@ export function newWatchFor(p: PartWatch) {
 
 function toDraft(w?: Partial<Watch>): Draft {
   return {
+    kind: (w?.kind as WatchKind) ?? "part",
+    margin_good: priceText(w?.margin_good ?? null),
+    margin_great: priceText(w?.margin_great ?? null),
     name: w?.name ?? "",
     category: w?.category ?? "",
     sources: (w?.sources as Source[]) ?? ["olx", "vinted"],
@@ -167,6 +176,22 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Draft>) => setD((prev) => ({ ...prev, ...patch }));
+  const pc = d.kind === "pc";
+
+  // A new PC watch starts on the computer categories with the default margins; fields already filled stay.
+  function setKind(kind: WatchKind) {
+    if (kind === "part" || watch) return set({ kind });
+    setD((p) => ({
+      ...p,
+      kind,
+      name: p.name || "PCs completos",
+      category: p.category || "Computadores",
+      olx_category_ids: p.olx_category_ids.length ? p.olx_category_ids : [4731],
+      vinted_catalog_ids: p.vinted_catalog_ids.length ? p.vinted_catalog_ids : [3581],
+      margin_good: p.margin_good || "50",
+      margin_great: p.margin_great || "100",
+    }));
+  }
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -179,11 +204,20 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
         price_min: parsePrice(d.price_min, "Preço mínimo"),
         price_max: parsePrice(d.price_max, "Preço máximo"),
         target_price: parsePrice(d.target_price, "Imperdível até"),
-        good_price: parsePrice(d.good_price, "Bom até"),
+        good_price: pc ? null : parsePrice(d.good_price, "Bom até"),
+        margin_good: pc ? parsePrice(d.margin_good, "Bom com margem de") : null,
+        margin_great: pc ? parsePrice(d.margin_great, "Imperdível com margem de") : null,
       };
+      if (pc) row.target_price = null;
       if (!row.name) throw new Error("Dá um nome à pesquisa.");
       if (!row.sources.length) throw new Error("Escolhe pelo menos uma fonte.");
-      if (!row.include_any.length && !row.include_all.length) throw new Error("Põe pelo menos uma palavra (senão apanha todos os anúncios).");
+      if (pc) {
+        if ((row.sources.includes("olx") && !row.olx_category_ids.length) || (row.sources.includes("vinted") && !row.vinted_catalog_ids.length)) {
+          throw new Error("Escolhe as categorias de computadores em cada fonte (OLX: Computadores; Vinted: Computadores de secretária).");
+        }
+        if (row.margin_good == null && row.margin_great == null) throw new Error("Põe pelo menos uma das margens.");
+        if (row.margin_good != null && row.margin_great != null && row.margin_great < row.margin_good) throw new Error('A margem de "Imperdível" tem de ser maior ou igual à de "Bom".');
+      } else if (!row.include_any.length && !row.include_all.length) throw new Error("Põe pelo menos uma palavra (senão apanha todos os anúncios).");
       if (row.price_min != null && row.price_max != null && row.price_min > row.price_max) throw new Error("O preço mínimo é maior do que o máximo.");
       if (row.target_price != null && row.good_price != null && row.target_price > row.good_price) throw new Error("O preço de \"Imperdível até\" tem de ser menor ou igual ao de \"Bom até\".");
       setBusy(true);
@@ -224,6 +258,16 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
           </p>
         )}
         <div className="space-y-3">
+          <div>
+            <p className="mb-1 text-sm text-neutral-400">Procura</p>
+            <Segmented value={d.kind} onChange={setKind} options={[["part", "Uma peça"], ["pc", "PCs completos"]]} />
+            {pc && (
+              <p className="mt-1.5 text-xs text-neutral-500">
+                Cada PC é avaliado pelas peças: a IA lê o anúncio e diz as peças, e cada uma vale o que está em Preços das peças (o teu valor, o de
+                mercado ou, sem nenhum, uma estimativa da IA). Aparecem em Negócios → PCs completos.
+              </p>
+            )}
+          </div>
           <Field label="Nome" required value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: RTX 3070" />
           <Field label="Grupo" list="watch-categories" value={d.category} onChange={(e) => set({ category: e.target.value })} placeholder="Ex.: Placas gráficas" hint="Só serve para arrumar as pesquisas e os negócios na app." />
           <datalist id="watch-categories">
@@ -237,7 +281,13 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
 
       <Card title="Palavras no título">
         <div className="space-y-3">
-          <TagInput label="Pelo menos uma destas" value={d.include_any} onChange={(include_any) => set({ include_any })} placeholder="rtx 3070, 3070 ti…" hint="Escreve e carrega Enter ou vírgula. Maiúsculas e acentos não contam." />
+          <TagInput
+            label={pc ? "Pelo menos uma destas (opcional)" : "Pelo menos uma destas"}
+            value={d.include_any}
+            onChange={(include_any) => set({ include_any })}
+            placeholder={pc ? "ex.: gaming, rtx" : "rtx 3070, 3070 ti…"}
+            hint={pc ? "Sem palavras, apanha todos os computadores das categorias escolhidas." : "Escreve e carrega Enter ou vírgula. Maiúsculas e acentos não contam."}
+          />
           <TagInput label="Todas estas (opcional)" value={d.include_all} onChange={(include_all) => set({ include_all })} placeholder="ex.: 16gb" />
           <TagInput label="Excluir" value={d.exclude} onChange={(exclude) => set({ exclude })} placeholder="ex.: mobile, portátil" hint="Além destas, as exclusões globais das Definições (avariado, para peças, …) aplicam-se sempre." />
           <Toggle
@@ -251,13 +301,28 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
 
       <Card title="Preço">
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Imperdível até €" inputMode="decimal" value={d.target_price} onChange={(e) => set({ target_price: e.target.value })} placeholder="ex.: 60" />
-            <Field label="Bom até €" inputMode="decimal" value={d.good_price} onChange={(e) => set({ good_price: e.target.value })} placeholder="ex.: 100" />
-          </div>
-          <p className="text-xs text-neutral-500">
-            Até ao preço de Imperdível manda push; até ao de Bom aparece em Bons. A IA só trava anúncios com problemas (não é o produto, avariado, só a caixa, burla). Sem estes preços, o nível vem da pontuação 0–100 (mediana dos últimos 30 dias e IA).
-          </p>
+          {pc ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Imperdível com margem de €" inputMode="decimal" value={d.margin_great} onChange={(e) => set({ margin_great: e.target.value })} placeholder="ex.: 100" />
+                <Field label="Bom com margem de €" inputMode="decimal" value={d.margin_good} onChange={(e) => set({ margin_good: e.target.value })} placeholder="ex.: 50" />
+              </div>
+              <p className="text-xs text-neutral-500">
+                Margem = valor das peças − preço pedido. Com a margem de Imperdível manda push; com a de Bom aparece em Bons. A IA trava portáteis, peças
+                soltas, PCs avariados e burlas.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Imperdível até €" inputMode="decimal" value={d.target_price} onChange={(e) => set({ target_price: e.target.value })} placeholder="ex.: 60" />
+                <Field label="Bom até €" inputMode="decimal" value={d.good_price} onChange={(e) => set({ good_price: e.target.value })} placeholder="ex.: 100" />
+              </div>
+              <p className="text-xs text-neutral-500">
+                Até ao preço de Imperdível manda push; até ao de Bom aparece em Bons. A IA só trava anúncios com problemas (não é o produto, avariado, só a caixa, burla). Sem estes preços, o nível vem da pontuação 0–100 (mediana dos últimos 30 dias e IA).
+              </p>
+            </>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Field label="Mínimo €" inputMode="decimal" value={d.price_min} onChange={(e) => set({ price_min: e.target.value })} />
             <Field label="Máximo €" inputMode="decimal" value={d.price_max} onChange={(e) => set({ price_max: e.target.value })} />

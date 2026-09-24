@@ -1,5 +1,5 @@
 // Pesquisas → Preços das peças: the market value the worker computes per part (pipeline/prices.ts),
-// and the friend's own value, which wins when set.
+// the friend's own value, which wins when set, and the AI's estimate that PC valuation uses when neither exists.
 import { useEffect, useMemo, useState } from "react";
 import { partWatch, type Row } from "@dh/shared";
 import { supabase } from "../lib/supabase";
@@ -42,7 +42,7 @@ export default function Prices() {
     const s = squash(search);
     // Without a search, only parts with a value; searching also finds the rare ones (to give them a value).
     const rows = (q.data?.prices ?? [])
-      .filter((p) => (type === "all" || p.type === type) && (s ? squash(p.label).includes(s) : p.market_value != null || p.manual_value != null))
+      .filter((p) => (type === "all" || p.type === type) && (s ? squash(p.label).includes(s) : p.market_value != null || p.manual_value != null || p.ai_value != null))
       .sort((a, b) => a.label.localeCompare(b.label, "pt", { numeric: true }));
     return TYPES.map(([t, title]) => ({ type: t, title, rows: rows.filter((p) => p.type === t) })).filter((g) => g.rows.length);
   }, [q.data, type, search]);
@@ -65,6 +65,10 @@ export default function Prices() {
             Vinted PT) quando há pelo menos 5 anúncios; senão, o Vinted de toda a UE. O Vinted conta sem a taxa do comprador.
           </p>
           <p>Se escreveres o teu valor, é esse que conta. Apaga-o para voltar ao de mercado.</p>
+          <p>
+            Sem nenhum dos dois, a avaliação de PCs usa uma estimativa da IA, feita da primeira vez que um PC traz essa peça e refeita ao fim de 30
+            dias.
+          </p>
           <p className="text-xs text-neutral-500">Atualiza de 6 em 6 horas{last ? ` (última: ${ago(last, now)})` : ""}.</p>
         </div>
       </Card>
@@ -119,11 +123,13 @@ function PriceRow({ p, watchId, onSaved }: { p: Price; watchId?: string; onSaved
     onSaved();
   }
 
-  const watch = watchId ? null : partWatch(p, p.manual_value ?? p.market_value);
+  const watch = watchId ? null : partWatch(p, p.manual_value ?? p.market_value ?? p.ai_value);
   const market =
     p.market_value != null
       ? `mercado ${euros(p.market_value)} · ${p.samples} anúncio${p.samples === 1 ? "" : "s"}${p.market_scope === "eu" ? " (UE)" : ""}`
-      : `poucos anúncios para mediana (${p.samples})`;
+      : p.ai_value != null
+        ? `estimativa IA ${euros(p.ai_value)} · ${p.samples} anúncio${p.samples === 1 ? "" : "s"}`
+        : `poucos anúncios para mediana (${p.samples})`;
   return (
     <li className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
       <div className="min-w-0 flex-1">
@@ -149,7 +155,7 @@ function PriceRow({ p, watchId, onSaved }: { p: Price; watchId?: string; onSaved
           onChange={(e) => setText(e.target.value)}
           onBlur={() => void save()}
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          placeholder={p.market_value != null ? priceText(p.market_value) : "—"}
+          placeholder={p.market_value != null ? priceText(p.market_value) : p.ai_value != null ? priceText(p.ai_value) : "—"}
           disabled={status.saving}
           className={`w-full rounded-xl border bg-neutral-900 px-2 py-1.5 text-right text-white outline-none transition-colors placeholder:text-neutral-600 focus:border-white disabled:opacity-50 ${p.manual_value != null ? "border-neutral-500" : "border-neutral-800"}`}
         />

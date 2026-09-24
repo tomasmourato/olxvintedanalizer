@@ -1,16 +1,20 @@
 // Market value per part: the median asking price of used single-part listings over 30 days (every listing
 // the worker has read, not only matches), refreshed every 6 h into part_prices. Portuguese listings (OLX,
 // Vinted PT) when there are enough, else the whole EU (maths in market.ts). The friend's own value
-// (manual_value, edited in the app) always wins over it.
-import type { Source } from "@dh/shared";
+// (manual_value, edited in the app) always wins over it. For PC valuation, a part with neither falls back to the
+// AI's estimate (ai_value), saved the first time a PC listing names the part.
+import type { PcPart, Source } from "@dh/shared";
 import { getSettings } from "../config.js";
 import { db } from "../db.js";
 import { errorText, flags, log } from "../util.js";
 import { marketPrices, type Sample } from "./market.js";
+import type { PartValue } from "./pc.js";
 
 const DAYS = 30;
 const REFRESH_MS = 6 * 3600_000;
 const PAGE = 1000; // PostgREST's max rows per request
+const VALUES_TTL_MS = 5 * 60_000; // a value edited in the app counts within 5 min
+const AI_VALUE_DAYS = 30; // then the next PC with the part asks again
 
 export async function refreshMarketPrices(): Promise<void> {
   const since = new Date(Date.now() - DAYS * 86400_000).toISOString();
@@ -52,4 +56,43 @@ export function startMarketPrices(): () => void {
   void run();
   const timer = setInterval(run, REFRESH_MS);
   return () => clearInterval(timer);
+}
+
+let values: { at: number; map: Map<string, PartValue> } | null = null;
+
+/** What each part is worth for PC valuation: the friend's value, else the market median, else a recent AI estimate. Cached for 5 min. */
+export async function partValues(): Promise<ReadonlyMap<string, PartValue>> {
+  if (values && Date.now() - values.at < VALUES_TTL_MS) return values.map;
+  const map = new Map<string, PartValue>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from("part_prices")
+      .select("key, market_value, manual_value, samples, ai_value, ai_at")
+      .or("manual_value.not.is.null,market_value.not.is.null,ai_value.not.is.null")
+      .order("key")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`part_prices: ${error.message}`);
+    const aiSince = Date.now() - AI_VALUE_DAYS * 86400_000;
+    for (const r of data) {
+      if (r.manual_value != null) map.set(r.key, { value: Number(r.manual_value), source: "manual", samples: r.samples });
+      else if (r.market_value != null) map.set(r.key, { value: Number(r.market_value), source: "mercado", samples: r.samples });
+      else if (r.ai_value != null && r.ai_at && Date.parse(r.ai_at) > aiSince) map.set(r.key, { value: Number(r.ai_value), source: "ia", samples: 0 });
+    }
+    if (data.length < PAGE) break;
+  }
+  values = { at: Date.now(), map };
+  return map;
+}
+
+/** Saves the AI's estimates for parts that had no value, so the next PC with the same part gets the same one. */
+export async function saveEstimates(parts: PcPart[]): Promise<void> {
+  const known = await partValues();
+  const ai_at = new Date().toISOString();
+  const rows = parts
+    .filter((p) => p.key && p.source === "ia" && p.value != null && !known.has(p.key))
+    .map((p) => ({ key: p.key!, type: p.type, label: p.label, ai_value: p.value, ai_at }));
+  if (!rows.length || flags.dryRun) return;
+  const { error } = await db.from("part_prices").upsert(rows, { onConflict: "key" });
+  if (error) return log("part_prices (estimativa IA):", error.message);
+  for (const r of rows) (known as Map<string, PartValue>).set(r.key, { value: r.ai_value!, source: "ia", samples: 0 });
 }

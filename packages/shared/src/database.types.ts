@@ -122,6 +122,8 @@ export type Database = {
           listing_id: number
           median_price: number | null
           notified: boolean
+          parts: Json | null
+          parts_value: number | null
           price: number | null
           reason: string | null
           red_flags: string[]
@@ -141,6 +143,8 @@ export type Database = {
           listing_id: number
           median_price?: number | null
           notified?: boolean
+          parts?: Json | null
+          parts_value?: number | null
           price?: number | null
           reason?: string | null
           red_flags?: string[]
@@ -160,6 +164,8 @@ export type Database = {
           listing_id?: number
           median_price?: number | null
           notified?: boolean
+          parts?: Json | null
+          parts_value?: number | null
           price?: number | null
           reason?: string | null
           red_flags?: string[]
@@ -241,6 +247,8 @@ export type Database = {
       }
       part_prices: {
         Row: {
+          ai_at: string | null
+          ai_value: number | null
           key: string
           label: string
           manual_value: number | null
@@ -252,6 +260,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_at?: string | null
+          ai_value?: number | null
           key: string
           label: string
           manual_value?: number | null
@@ -263,6 +273,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_at?: string | null
+          ai_value?: number | null
           key?: string
           label?: string
           manual_value?: number | null
@@ -430,6 +442,9 @@ export type Database = {
           id: string
           include_all: string[]
           include_any: string[]
+          kind: string
+          margin_good: number | null
+          margin_great: number | null
           name: string
           olx_category_ids: number[]
           price_max: number | null
@@ -450,6 +465,9 @@ export type Database = {
           id?: string
           include_all?: string[]
           include_any?: string[]
+          kind?: string
+          margin_good?: number | null
+          margin_great?: number | null
           name: string
           olx_category_ids?: number[]
           price_max?: number | null
@@ -470,6 +488,9 @@ export type Database = {
           id?: string
           include_all?: string[]
           include_any?: string[]
+          kind?: string
+          margin_good?: number | null
+          margin_great?: number | null
           name?: string
           olx_category_ids?: number[]
           price_max?: number | null

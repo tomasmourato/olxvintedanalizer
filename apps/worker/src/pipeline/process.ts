@@ -1,5 +1,5 @@
 // New/changed listings → match against watches → (Vinted) enrich → evaluate → matches table → push.
-import type { Insert, PushPayload, Source, Update, Watch } from "@dh/shared";
+import type { Insert, PcPart, PushPayload, Source, Update, Watch } from "@dh/shared";
 import { getSettings, getWatches } from "../config.js";
 import { db } from "../db.js";
 import { BlockedError, type ScrapedListing } from "../sources/types.js";
@@ -40,9 +40,10 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
       matches++;
       const drop = previousPrice != null ? ` (baixou de ${previousPrice} €)` : "";
       const ai = e.ai ? ` [IA ${e.ai.status}${e.ai.status === "ok" ? "" : `: ${e.ai.error}`}, ${e.ai.ms} ms]` : "";
+      const pc = e.row.parts ? ` [peças ${e.row.parts_value ?? "?"} €: ${(e.row.parts as PcPart[]).map((p) => `${p.label} ${p.value ?? "?"}`).join(", ")}]` : "";
       log(
         `${silent ? "[silencioso] " : ""}match ${source} "${l.title}" ${l.price ?? "?"} €${drop} → ${watch.name}: ` +
-          `${e.row.score} ${e.tier}${ai} — ${e.row.reason}`,
+          `${e.row.score} ${e.tier}${ai}${pc} — ${e.row.reason}`,
       );
       if (e.held || dismissed) {
         if (e.tier === "imperdivel") log(`sem push (${e.held ?? "apagado na app"}): ${l.title}`);

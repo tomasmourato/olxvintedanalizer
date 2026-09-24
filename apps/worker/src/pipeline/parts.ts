@@ -103,7 +103,9 @@ function ram(t: string, raw: string): Part | null {
   const gen = t.match(/\b(?:ddr([2-5])|pc([2-5]))\b/);
   if (!gen && !WORDS.ram.some((w) => hasPhrase(t, w))) return null;
   const kit = raw.match(/(\d+)\s*[x×]\s*(\d+)\s*(?:gb|go|g)\b/);
-  const one = raw.match(/(\d+)\s*(?:gb|go)\b/);
+  // In a PC title the first "GB" is often the graphics card's ("RTX 3060 12GB 16GB DDR4"): prefer the size next to RAM/DDR.
+  const one =
+    raw.match(/(\d+)\s*(?:gb|go)\s*(?:de\s+)?(?:ram|ddr[2-5])/) ?? raw.match(/(?:ram|ddr[2-5])\s*(?:de\s+)?(\d+)\s*(?:gb|go)\b/) ?? raw.match(/(\d+)\s*(?:gb|go)\b/);
   const gb = kit ? Number(kit[1]) * Number(kit[2]) : one ? Number(one[1]) : null;
   if (!gen || !gb || ![2, 4, 8, 16, 32, 64, 128].includes(gb)) return { type: "ram", key: null, label: null };
   const ddr = `ddr${gen[1] ?? gen[2]}`;
@@ -115,11 +117,17 @@ function storage(t: string, raw: string): Part | null {
   const ssd = ["ssd", "nvme", "nvm express", "m 2"].some((w) => hasPhrase(t, w));
   if (!ssd && !WORDS.storage.some((w) => hasPhrase(t, w))) return null;
   const external = ["externo", "externa", "externe", "external", "esterno", "portable"].some((w) => hasPhrase(t, w));
-  const tb = raw.match(/(\d+(?:[.,]\d+)?)\s*(?:tb|to)\b/);
-  const gb = raw.match(/(\d+)\s*(?:gb|go|g)\b/);
-  const cap = tb ? Number(tb[1].replace(",", ".")) * 1000 : gb ? Number(gb[1]) : null;
+  // The first size that is a disk size: next to SSD/HDD first ("16GB RAM 512GB SSD", "32gb ssd 1tb" skips the RAM's 32),
+  // then the first TB, then the first GB.
+  const sizes = [
+    /(\d+(?:[.,]\d+)?)\s*(tb|to|gb|go)\s*(?:de\s+)?(?:ssd|nvme|hdd|m\.?2)/g,
+    /(?:ssd|nvme|hdd|m\.?2)\s*(?:de\s+)?(\d+(?:[.,]\d+)?)\s*(tb|to|gb|go)\b/g,
+    /(\d+(?:[.,]\d+)?)\s*(tb|to)\b/g,
+    /(\d+)\s*(gb|go|g)\b/g,
+  ].flatMap((re) => [...raw.matchAll(re)].map((m) => Number(m[1].replace(",", ".")) * (m[2].startsWith("t") ? 1000 : 1)));
   const kind = ssd ? "ssd" : "hdd";
-  const b = cap && bucket(cap, ssd ? [128, 256, 512, 1000, 2000, 4000] : [250, 320, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000]);
+  const disk = ssd ? [128, 256, 512, 1000, 2000, 4000] : [250, 320, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+  const b = sizes.map((gb) => bucket(gb, disk)).find((x) => x != null) ?? null;
   if (external || !b) return { type: "storage", key: null, label: null };
   return { type: "storage", key: `storage:${kind}-${b}`, label: `${kind.toUpperCase()} ${size(b)}` };
 }
