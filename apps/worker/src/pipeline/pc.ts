@@ -124,3 +124,21 @@ export function pcVeto(v: Pick<PcVerdict, "is_pc" | "working" | "scam">): string
   const flags = [!v.is_pc && "não é um PC completo", !v.working && "avariado ou para peças", v.scam && "sinais de burla"].filter((f): f is string => !!f);
   return flags.length ? flags : null;
 }
+
+/**
+ * Why a PC goes to "Por identificar": its processor is not named, or its processor or graphics card has no
+ * model or no value (a PC without a graphics card is fine: integrated graphics). Null when it is valued.
+ */
+export function pcUnknown(parts: PcPart[], aiAnswered: boolean): string | null {
+  const why: string[] = [];
+  const cpu = parts.find((p) => p.type === "cpu");
+  const gpu = parts.find((p) => p.type === "gpu");
+  if (!cpu) why.push("não diz o processador");
+  for (const [p, name] of [[cpu, "do processador"], [gpu, "da gráfica"]] as const) {
+    if (!p) continue;
+    if (!p.key) why.push(`não diz o modelo ${name}`);
+    else if (p.value == null) why.push(`sem valor para ${p.label}: define-o em Preços das peças`);
+  }
+  if (!why.length) return null;
+  return `${aiAnswered ? "" : "IA indisponível; "}${why.join("; ")}`;
+}

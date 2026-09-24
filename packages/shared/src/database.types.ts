@@ -431,6 +431,51 @@ export type Database = {
         }
         Relationships: []
       }
+      unidentified: {
+        Row: {
+          created_at: string
+          done_at: string | null
+          id: number
+          kind: string
+          listing_id: number
+          reason: string
+          watch_id: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string | null
+          id?: never
+          kind: string
+          listing_id: number
+          reason: string
+          watch_id: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string | null
+          id?: never
+          kind?: string
+          listing_id?: number
+          reason?: string
+          watch_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unidentified_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unidentified_watch_id_fkey"
+            columns: ["watch_id"]
+            isOneToOne: false
+            referencedRelation: "watches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       watches: {
         Row: {
           active: boolean

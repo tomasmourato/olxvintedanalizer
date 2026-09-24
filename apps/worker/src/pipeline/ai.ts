@@ -238,9 +238,54 @@ function parsePcVerdict(text: string | undefined): PcVerdict {
   };
 }
 
-/** One retry after a timeout: PC answers usually take 1–2 s, but 12 of 39 hit 8 s in one burst (2026-09-24) and the parser alone undervalues. */
-export async function askPcParts(input: PcAiInput): Promise<PcAiResult> {
-  const ask = () => generate(input.settings, pcUserPrompt(input), pcSystemPrompt(input.settings), PC_SCHEMA, parsePcVerdict, PC_TIMEOUT_MS);
+/** One retry after a timeout: answers usually take 1–2 s, but 12 of 39 PCs hit 8 s in one burst (2026-09-24). */
+async function retryTimeout<T>(ask: () => Promise<Outcome<T>>): Promise<Outcome<T>> {
   const first = await ask();
   return first.status === "timeout" ? ask() : first;
+}
+
+export function askPcParts(input: PcAiInput): Promise<PcAiResult> {
+  return retryTimeout(() => generate(input.settings, pcUserPrompt(input), pcSystemPrompt(input.settings), PC_SCHEMA, parsePcVerdict, PC_TIMEOUT_MS));
+}
+
+// Loose parts whose title names only the type ("Placa gráfica 8GB"): does the description say the model?
+
+const MODEL_TIMEOUT_MS = 6_000;
+const MODEL_SCHEMA = {
+  type: "object",
+  properties: { model: { type: "string", description: "O modelo, no formato pedido. Vazio se o anúncio não o diz." } },
+  required: ["model"],
+};
+const TYPE_TEXT: Record<string, string> = {
+  gpu: "placa gráfica (ex.: «RTX 3060», «RTX 3060 Ti», «GTX 1660 Super», «RX 6600 XT»)",
+  cpu: "processador (ex.: «Ryzen 5 3600», «i5-10400F»)",
+  ram: "memória RAM, o total com a geração (ex.: «16GB DDR4»; 2x8GB = 16GB)",
+  storage: "disco (ex.: «SSD 512GB», «HDD 1TB»)",
+  psu: "fonte de alimentação, a potência (ex.: «650W»)",
+  motherboard: "motherboard, o chipset (ex.: «B450», «Z390»)",
+};
+
+export type ModelInput = { listing: ScrapedListing; types: string[]; settings: Settings };
+export type ModelResult = Outcome<string>;
+
+export function modelPrompt({ listing: l, types }: Pick<ModelInput, "listing" | "types">): string {
+  const desc = l.description?.trim().slice(0, MAX_DESCRIPTION);
+  return [
+    `Este anúncio (${l.source === "olx" ? "OLX" : "Vinted"}) vende uma peça de computador cujo título não diz o modelo.`,
+    `Diz o modelo exato da ${types.map((t) => TYPE_TEXT[t] ?? t).join(" ou ")}, só se o anúncio o disser (título ou descrição); não adivinhes. Vazio se não disser.`,
+    "",
+    `Título: ${l.title}`,
+    `Preço: ${l.price ?? "sem preço"} €`,
+    desc ? `Descrição:\n${desc}` : "Sem descrição.",
+  ].join("\n");
+}
+
+function parseModel(text: string | undefined): string {
+  const j = JSON.parse(text ?? "") as { model?: unknown };
+  if (typeof j.model !== "string") throw new Error(`unexpected AI output: ${text?.slice(0, 200)}`);
+  return j.model.trim().slice(0, 60);
+}
+
+export function askModel(input: ModelInput): Promise<ModelResult> {
+  return retryTimeout(() => generate(input.settings, modelPrompt(input), "Respondes só com JSON.", MODEL_SCHEMA, parseModel, MODEL_TIMEOUT_MS));
 }

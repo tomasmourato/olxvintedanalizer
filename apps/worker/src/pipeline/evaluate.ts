@@ -4,7 +4,7 @@ import type { Insert, Settings, Tier, Watch } from "@dh/shared";
 import { db } from "../db.js";
 import type { ScrapedListing } from "../sources/types.js";
 import { aiAvailable, askAi, askPcParts, type AiResult, type PcAiResult } from "./ai.js";
-import { aiParts, mergeParts, pcVeto, priceParts, rulesParts, valuePc } from "./pc.js";
+import { aiParts, mergeParts, pcUnknown, pcVeto, priceParts, rulesParts, valuePc } from "./pc.js";
 import { partValues, saveEstimates } from "./prices.js";
 import { holdBack, median, priceTier, ruleScore, rulesOnly, tierFor, vetoed } from "./score.js";
 
@@ -39,6 +39,8 @@ export type Evaluation = {
   /** Null = push it; otherwise why not. */
   held: string | null;
   ai: AiResult | PcAiResult | null;
+  /** A PC whose processor or graphics card could not be valued: why, for "Por identificar". */
+  unidentified: string | null;
 };
 
 export type EvaluateInput = {
@@ -93,6 +95,7 @@ export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
     tier,
     held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),
     ai,
+    unidentified: null,
   };
 }
 
@@ -140,6 +143,8 @@ async function evaluatePc(input: EvaluateInput): Promise<Evaluation> {
     tier,
     held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),
     ai,
+    // Not for the first (silent) read, which has no AI, nor for what the AI vetoed (laptops, broken, scams).
+    unidentified: silent || veto ? null : pcUnknown(parts, !!ok),
   };
 }
 

@@ -99,22 +99,29 @@ function cpus(t: string): Part[] {
   return out;
 }
 
-function ram(t: string, raw: string): Part | null {
-  const gen = t.match(/\b(?:ddr([2-5])|pc([2-5]))\b/);
-  if (!gen && !WORDS.ram.some((w) => hasPhrase(t, w))) return null;
+/** The RAM generation and total size a text states, each null when missing ("2x8GB DDR4" → ddr4, 16). */
+function ramSpec(t: string, raw: string): { ddr: string | null; gb: number | null } {
+  const gen = t.match(/\b(?:ddr ?([2-5])|pc([2-5]))\b/);
   const kit = raw.match(/(\d+)\s*[x×]\s*(\d+)\s*(?:gb|go|g)\b/);
   // In a PC title the first "GB" is often the graphics card's ("RTX 3060 12GB 16GB DDR4"): prefer the size next to RAM/DDR.
   const one =
     raw.match(/(\d+)\s*(?:gb|go)\s*(?:de\s+)?(?:ram|ddr[2-5])/) ?? raw.match(/(?:ram|ddr[2-5])\s*(?:de\s+)?(\d+)\s*(?:gb|go)\b/) ?? raw.match(/(\d+)\s*(?:gb|go)\b/);
-  const gb = kit ? Number(kit[1]) * Number(kit[2]) : one ? Number(one[1]) : null;
-  if (!gen || !gb || ![2, 4, 8, 16, 32, 64, 128].includes(gb)) return { type: "ram", key: null, label: null };
-  const ddr = `ddr${gen[1] ?? gen[2]}`;
+  return { ddr: gen ? `ddr${gen[1] ?? gen[2]}` : null, gb: kit ? Number(kit[1]) * Number(kit[2]) : one ? Number(one[1]) : null };
+}
+
+export const titleRamSpec = (title: string) => ramSpec(normalize(title), lower(title));
+
+function ram(t: string, raw: string): Part | null {
+  const { ddr, gb } = ramSpec(t, raw);
+  if (!ddr && !WORDS.ram.some((w) => hasPhrase(t, w))) return null;
+  if (!ddr || !gb || ![2, 4, 8, 16, 32, 64, 128].includes(gb)) return { type: "ram", key: null, label: null };
   const so = /\bso ?dimm\b/.test(t);
   return { type: "ram", key: `ram:${ddr}-${gb}${so ? "-sodimm" : ""}`, label: `${gb}GB ${ddr.toUpperCase()}${so ? " SO-DIMM" : ""}` };
 }
 
 function storage(t: string, raw: string): Part | null {
-  const ssd = ["ssd", "nvme", "nvm express", "m 2"].some((w) => hasPhrase(t, w));
+  // "M.2" as a word of its own: hasPhrase would also find it inside "ram 2x4".
+  const ssd = ["ssd", "nvme", "nvm express"].some((w) => hasPhrase(t, w)) || /(?<![a-z0-9])m 2(?![0-9])/.test(t);
   if (!ssd && !WORDS.storage.some((w) => hasPhrase(t, w))) return null;
   const external = ["externo", "externa", "externe", "external", "esterno", "portable"].some((w) => hasPhrase(t, w));
   // The first size that is a disk size: next to SSD/HDD first ("16GB RAM 512GB SSD", "32gb ssd 1tb" skips the RAM's 32),
@@ -174,11 +181,51 @@ const NOT_SINGLE = [
   "sem funcionar", "caixa vazia", "so caixa", "box only", "solo caja", "partido", "partida",
 ];
 
+/** Not a whole PC, a combo ("+"), a lot, a wanted ad, broken or box-only. */
+function sellsOnePart(title: string): boolean {
+  if (lower(title).replace(/80\s*(?:\+|plus)/g, "").includes("+")) return false;
+  const t = normalize(title);
+  return !NOT_SINGLE.some((w) => hasPhrase(t, w)) && !/\b(?:avariad|defeit|danificad|broken|defect|guast)/.test(t);
+}
+
 /** The one part a listing sells, or null (several parts, a whole PC, a lot, broken, or no model). */
 export function singlePart(title: string): Part | null {
-  if (lower(title).replace(/80\s*(?:\+|plus)/g, "").includes("+")) return null;
-  const t = normalize(title);
-  if (NOT_SINGLE.some((w) => hasPhrase(t, w)) || /\b(?:avariad|defeit|danificad|broken|defect|guast)/.test(t)) return null;
+  if (!sellsOnePart(title)) return null;
   const parts = parseParts(title);
   return parts.length === 1 && parts[0].key ? parts[0] : null;
+}
+
+// Accessories sold for a part, and several parts at once: never worth asking the AI about.
+const NOT_THE_PART = [
+  "suporte", "support", "soporte", "supporto", "halterung", "cabo", "cabos", "cable", "cavo", "riser", "adaptador", "adapter",
+  "adattatore", "backplate", "bracket", "waterblock", "water block", "dissipador", "heatsink", "rig", "estrutura", "frame",
+  "varias", "varios", "diversas", "diversos", "plusieurs", "vari", "varie", "componentes", "etc",
+];
+// RAM from before DDR2: sizes in MB, SDRAM, PC100/PC133, DDR1.
+const OLD_RAM = /\b(?:sd ?ram|pc1\d\d|ddr ?1)\b|\d+\s*(?:mb|mo)\b/;
+
+/**
+ * A model-like number left once sizes, speeds, powers and memory generations are removed: "GTX 650 1GB" → yes
+ * (a model the parser does not follow), "Placa gráfica 4GB" → no.
+ */
+export function hasModelNumber(text: string): boolean {
+  const t = lower(text)
+    .replace(/\d+(?:[.,]\d+)?\s*(?:gb|go|mb|mo|tb|to|mhz|ghz|hz|w|bits?|p|pinos?|pins?|cm|mm|v)\b/g, " ")
+    .replace(/\b(?:g?ddr|lpddr|pcie?)\s?\d(?:[.,]\d)?\b/g, " ")
+    .replace(/\b\d+\s*[x×]\s*\d+/g, " ");
+  return /\d{2,}/.test(t);
+}
+
+/**
+ * The part types a one-part listing names without the model, for "Por identificar" ("Placa gráfica 8GB" → gpu).
+ * Titles with any model, even one the parser does not follow ("GT 710"), and RAM with both size and generation, are out.
+ */
+export function unnamedTypes(title: string): PartType[] {
+  if (!sellsOnePart(title) || NOT_THE_PART.some((w) => hasPhrase(normalize(title), w))) return [];
+  const parts = parseParts(title);
+  if (parts.length !== 1 || parts[0].key) return []; // several part types = a combo ("motherboard, ram e processador")
+  const { type } = parts[0];
+  const spec = titleRamSpec(title);
+  if (type === "ram") return (!spec.ddr || !spec.gb) && !OLD_RAM.test(lower(title)) ? [type] : [];
+  return (type === "gpu" || type === "cpu") && hasModelNumber(title) ? [] : [type];
 }

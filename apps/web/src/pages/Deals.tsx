@@ -5,6 +5,7 @@ import { errorText, must, useDebounced, useNow, useQuery, useRealtime, useStored
 import { ago, euros, pct, sourceLabel } from "../lib/format";
 import { Badge, Empty, Icon, Loading, Segmented, Select, type Tone } from "../components/ui";
 import type { IconName } from "../components/icons";
+import Unidentified, { useUnidentifiedCount } from "./Unidentified";
 
 const SELECT = `id, price, median_price, discount_pct, score, tier, reason, red_flags, ai_status, notified, created_at, updated_at, parts, parts_value,
   listing:listings!inner(id, source, title, price, previous_price, url, photo_url, location, country),
@@ -13,7 +14,8 @@ const SELECT = `id, price, median_price, discount_pct, score, tier, reason, red_
 const PERIODS = { "24h": 1, "7d": 7, "30d": 30 } as const;
 type Period = keyof typeof PERIODS;
 type Filters = {
-  kind: WatchKind;
+  /** Which list: part deals, whole PCs, or "Por identificar". */
+  kind: WatchKind | "unknown";
   period: Period;
   source: "all" | "olx" | "vinted";
   watch: string;
@@ -64,6 +66,7 @@ export default function Deals() {
   const [actionError, setActionError] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pc = f.kind === "pc";
+  const unknownCount = useUnidentifiedCount();
 
   const hide = (id: number, on: boolean) =>
     setGone((g) => {
@@ -119,9 +122,26 @@ export default function Deals() {
   const isOpen = (key: string) => !f.closed.includes(key);
   const flip = (key: string) => set({ closed: isOpen(key) ? [...f.closed, key] : f.closed.filter((k) => k !== key) });
 
+  const tabs = (
+    <Segmented
+      value={f.kind}
+      onChange={(kind) => set({ kind, watch: "all" })}
+      // Short labels: three options must fit a 320 px phone on one line.
+      options={[["part", "Peças"], ["pc", "PCs"], ["unknown", `Por identificar${unknownCount ? ` (${unknownCount})` : ""}`]]}
+    />
+  );
+  if (f.kind === "unknown") {
+    return (
+      <div className="space-y-4">
+        {tabs}
+        <Unidentified />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <Segmented value={f.kind} onChange={(kind) => set({ kind, watch: "all" })} options={[["part", "Peças"], ["pc", "PCs completos"]]} />
+      {tabs}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         <Select label="Período" value={f.period} onChange={(period) => set({ period })} options={[["24h", "24 horas"], ["7d", "7 dias"], ["30d", "30 dias"]]} />
         <Select label="Fonte" value={f.source} onChange={(source) => set({ source })} options={[["all", "Todas"], ["olx", "OLX"], ["vinted", "Vinted"]]} />

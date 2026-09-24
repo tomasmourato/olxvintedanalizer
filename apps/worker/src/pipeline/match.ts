@@ -1,5 +1,6 @@
 import type { Settings, Watch } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
+import { parseParts, titleRamSpec, type Part, type PartType } from "./parts.js";
 import { hasPhrase, normalize } from "./text.js";
 
 export type MatchSettings = Pick<Settings, "global_exclude" | "vinted_countries">;
@@ -11,6 +12,14 @@ export type MatchSettings = Pick<Settings, "global_exclude" | "vinted_countries"
  */
 export function matchWatches(listing: ScrapedListing, watches: Watch[], settings: MatchSettings): Watch[] {
   const title = normalize(listing.title);
+  return fittingWatches(listing, watches, settings).filter(
+    (w) => (!w.include_any.length || w.include_any.some((t) => hasPhrase(title, t))) && w.include_all.every((t) => hasPhrase(title, t)),
+  );
+}
+
+/** Every filter of the watch except its words: source, category, exclusions, price range, plus the global ones. */
+export function fittingWatches(listing: ScrapedListing, watches: Watch[], settings: MatchSettings): Watch[] {
+  const title = normalize(listing.title);
   if (settings.global_exclude.some((t) => hasPhrase(title, t))) return [];
   if (!countryAllowed(listing, settings)) return [];
 
@@ -19,12 +28,51 @@ export function matchWatches(listing: ScrapedListing, watches: Watch[], settings
     const cats = listing.source === "olx" ? w.olx_category_ids : w.vinted_catalog_ids;
     const path = listing.category_path?.length ? listing.category_path : listing.category_id != null ? [listing.category_id] : null;
     if (cats.length && path && !cats.some((c) => path.includes(c))) return false;
-    if (w.include_any.length && !w.include_any.some((t) => hasPhrase(title, t))) return false;
-    if (!w.include_all.every((t) => hasPhrase(title, t))) return false;
     if (w.exclude.some((t) => hasPhrase(title, t))) return false;
     if (w.price_min != null && (listing.price == null || listing.price < w.price_min)) return false;
     if (w.price_max != null && (listing.price == null || listing.price > w.price_max)) return false;
     return true;
+  });
+}
+
+const TYPE_OF_CATEGORY: Record<string, PartType> = {
+  "Placas gráficas": "gpu",
+  Processadores: "cpu",
+  "Memória RAM": "ram",
+  Armazenamento: "storage",
+  Fontes: "psu",
+  Motherboards: "motherboard",
+};
+
+type WatchText = Pick<Watch, "name" | "include_any" | "include_all" | "category">;
+const watchParts = (w: WatchText): Part[] => parseParts([w.name, ...w.include_any, ...w.include_all].join(" "));
+
+/** The part type a part watch is for, read from its name and words ("RTX 3060" → gpu, "16GB DDR4" → ram), else its group. */
+export function watchType(w: WatchText): PartType | null {
+  const parts = watchParts(w);
+  return (parts.find((p) => p.key) ?? parts[0])?.type ?? TYPE_OF_CATEGORY[w.category] ?? null;
+}
+
+/** RAM: the size or generation the title does state must be the watch's ("RAM 4GB" is not for a 16GB DDR4 watch). */
+function ramFits(title: string, w: WatchText): boolean {
+  const key = watchParts(w).find((p) => p.type === "ram" && p.key)?.key;
+  const m = key?.match(/^ram:(ddr\d)-(\d+)/);
+  if (!m) return true;
+  const { ddr, gb } = titleRamSpec(title);
+  return (ddr == null || ddr === m[1]) && (gb == null || gb === Number(m[2]));
+}
+
+/**
+ * Part watches a listing could be for when its title names the part type but no model ("Placa gráfica 8GB"):
+ * same type, every filter but the words, and priced at most at the watch's "Bom até" (else its other limits),
+ * so the AI is only asked about listings that could be a deal.
+ */
+export function unnamedWatches(listing: ScrapedListing, types: PartType[], watches: Watch[], settings: MatchSettings): Watch[] {
+  if (!types.length || listing.price == null || listing.price <= 0) return [];
+  return fittingWatches(listing, watches, settings).filter((w) => {
+    const cap = w.good_price ?? w.target_price ?? w.price_max;
+    const type = watchType(w);
+    return w.kind === "part" && cap != null && listing.price! <= cap && !!type && types.includes(type) && (type !== "ram" || ramFits(listing.title, w));
   });
 }
 
