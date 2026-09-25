@@ -44,6 +44,10 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         previousPrice,
         describe: source === "vinted" ? () => describeVinted(entry) : undefined,
       });
+      if (e.discard) {
+        log(`${silent ? "[silencioso] " : ""}PC não guardado (${e.discard}): ${source} "${l.title}" ${l.price ?? "?"} € → ${watch.name}`);
+        continue;
+      }
       if (model) e.row.reason = `modelo lido na descrição; ${e.row.reason ?? ""}`;
       const { id: matchId, dismissed } = await saveMatch(e.row);
       matches++;

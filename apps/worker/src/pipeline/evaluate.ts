@@ -41,6 +41,8 @@ export type Evaluation = {
   ai: AiResult | PcAiResult | null;
   /** A PC whose processor or graphics card could not be valued: why, for "Por identificar". */
   unidentified: string | null;
+  /** A PC whose parts are worth less than its price: why it is not saved anywhere (not even as "Resto"). */
+  discard: string | null;
 };
 
 export type EvaluateInput = {
@@ -96,6 +98,7 @@ export async function evaluate(input: EvaluateInput): Promise<Evaluation> {
     held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),
     ai,
     unidentified: null,
+    discard: null,
   };
 }
 
@@ -145,6 +148,7 @@ async function evaluatePc(input: EvaluateInput): Promise<Evaluation> {
     ai,
     // Not for the first (silent) read, which has no AI, nor for what the AI vetoed (laptops, broken, scams).
     unidentified: silent || veto ? null : pcUnknown(parts, !!ok),
+    discard: v.margin != null && v.margin < 0 ? `margem ${v.margin} €` : null,
   };
 }
 
