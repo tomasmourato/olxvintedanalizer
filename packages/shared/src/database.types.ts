@@ -39,6 +39,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      listing_checks: {
+        Row: {
+          checked: number
+          error: string | null
+          finished_at: string | null
+          gone: number
+          id: number
+          requested_at: string
+          started_at: string | null
+          total: number | null
+        }
+        Insert: {
+          checked?: number
+          error?: string | null
+          finished_at?: string | null
+          gone?: number
+          id?: never
+          requested_at?: string
+          started_at?: string | null
+          total?: number | null
+        }
+        Update: {
+          checked?: number
+          error?: string | null
+          finished_at?: string | null
+          gone?: number
+          id?: never
+          requested_at?: string
+          started_at?: string | null
+          total?: number | null
+        }
+        Relationships: []
+      }
       listings: {
         Row: {
           brand: string | null
@@ -49,6 +82,7 @@ export type Database = {
           description: string | null
           external_id: string
           first_seen_at: string
+          gone_at: string | null
           id: number
           location: string | null
           photo_url: string | null
@@ -72,6 +106,7 @@ export type Database = {
           description?: string | null
           external_id: string
           first_seen_at?: string
+          gone_at?: string | null
           id?: never
           location?: string | null
           photo_url?: string | null
@@ -95,6 +130,7 @@ export type Database = {
           description?: string | null
           external_id?: string
           first_seen_at?: string
+          gone_at?: string | null
           id?: never
           location?: string | null
           photo_url?: string | null
@@ -494,6 +530,7 @@ export type Database = {
           olx_category_ids: number[]
           price_max: number | null
           price_min: number | null
+          priority_until: string | null
           search_remote: boolean
           sources: string[]
           target_price: number | null
@@ -517,6 +554,7 @@ export type Database = {
           olx_category_ids?: number[]
           price_max?: number | null
           price_min?: number | null
+          priority_until?: string | null
           search_remote?: boolean
           sources?: string[]
           target_price?: number | null
@@ -540,6 +578,7 @@ export type Database = {
           olx_category_ids?: number[]
           price_max?: number | null
           price_min?: number | null
+          priority_until?: string | null
           search_remote?: boolean
           sources?: string[]
           target_price?: number | null

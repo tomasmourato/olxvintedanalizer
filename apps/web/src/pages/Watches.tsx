@@ -3,8 +3,12 @@ import type { Insert, PartWatch, Source, Watch, WatchKind } from "@dh/shared";
 import { supabase } from "../lib/supabase";
 import { errorText, go, must, useDebounced, useQuery, useRealtime } from "../lib/live";
 import { CATEGORIES } from "../lib/categories";
-import { euros, parsePrice, priceText, sourceLabel } from "../lib/format";
+import { euros, parsePrice, priceText, sourceLabel, when } from "../lib/format";
 import { Button, Card, Empty, Field, Icon, Loading, Message, PickList, Segmented, Switch, TagInput, TextArea, Toggle } from "../components/ui";
+
+/** "Prioridade": the worker reads this watch's categories every 10–15 s until then (scheduler.ts). */
+const PRIORITY_DAYS = 7;
+const priorityOn = (until: string | null): until is string => until != null && Date.parse(until) > Date.now();
 
 const DEFAULT_CATEGORIES = ["Placas gráficas", "Processadores", "Motherboards", "Memória RAM", "Armazenamento", "Fontes", "Caixas", "Computadores", "Outros"];
 
@@ -95,6 +99,7 @@ function WatchList({ watches, counts, onChange }: { watches: Watch[]; counts: Ma
                       {[
                         w.sources.map((s) => sourceLabel[s as Source]).join(" + "),
                         w.search_remote && "site todo",
+                        priorityOn(w.priority_until) && `prioridade até ${when(w.priority_until)}`,
                         c ? `${c.all} matches em 30 dias${c.top ? `, ${c.top} imperdíveis` : ""}` : "sem matches em 30 dias",
                       ]
                         .filter(Boolean)
@@ -166,6 +171,7 @@ function toDraft(w?: Partial<Watch>): Draft {
     good_price: priceText(w?.good_price ?? null),
     context: w?.context ?? "",
     active: w?.active ?? true,
+    priority_until: w?.priority_until ?? null,
   };
 }
 
@@ -276,6 +282,18 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
             ))}
           </datalist>
           <Toggle label="Ativa" checked={d.active} onChange={(active) => set({ active })} />
+          <Toggle
+            label={`Prioridade durante ${PRIORITY_DAYS} dias`}
+            hint={
+              <>
+                {priorityOn(d.priority_until) && <span className="text-neutral-300">Ligada até {when(d.priority_until)}. </span>}
+                Lê as categorias desta pesquisa a cada 10–15 s em vez de 30 s (Vinted) / 2 min (OLX), para o aviso chegar mais cedo. Acaba sozinha. Usa em
+                poucas pesquisas: pedidos a mais podem fazer o OLX/Vinted bloquear.
+              </>
+            }
+            checked={priorityOn(d.priority_until)}
+            onChange={(on) => set({ priority_until: on ? new Date(Date.now() + PRIORITY_DAYS * 86_400_000).toISOString() : null })}
+          />
         </div>
       </Card>
 

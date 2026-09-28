@@ -2,6 +2,7 @@
 // --olx / --vinted (only that source), --test-push (send a test notification, then exit),
 // --prices (refresh the parts' market prices, then exit).
 import type { Source } from "@dh/shared";
+import { watchChecks } from "./checks.js";
 import { getWatches, loadConfig, watchConfig } from "./config.js";
 import { sendPush } from "./push.js";
 import { refreshMarketPrices, startMarketPrices } from "./pipeline/prices.js";
@@ -36,6 +37,7 @@ if (args.has("--once")) {
 const stopHeartbeat = startHeartbeat();
 const stopConfig = watchConfig();
 const stopPrices = startMarketPrices();
+const stopChecks = watchChecks();
 for (const s of sources) {
   new SourceLoop(s).run().catch(async (e) => {
     log(`${s}: ciclo terminou com erro — ${errorText(e)}`);
@@ -49,6 +51,7 @@ async function shutdown(signal: string) {
   stopHeartbeat();
   stopConfig();
   stopPrices();
+  stopChecks();
   await closeOlx();
   process.exit(0);
 }

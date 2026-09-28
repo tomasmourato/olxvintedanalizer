@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseOffers } from "../src/sources/olx.js";
-import { parseCatalog, parseItemPage } from "../src/sources/vinted.js";
+import { itemClosed, parseCatalog, parseItemPage } from "../src/sources/vinted.js";
 
 const fixture = (name: string) => readFileSync(new URL(`../fixtures/${name}`, import.meta.url), "utf8");
 
@@ -40,6 +40,26 @@ describe("vinted parseItemPage", () => {
     expect(d.catalogPath).toEqual([2994, 3564, 3580]);
     expect(d.catalogId).toBe(3580);
     expect(d.description).toMatch(/^Dell Latitude 5440\nProcessor/);
+  });
+});
+
+describe("vinted itemClosed", () => {
+  // The sidebar plugin of a sold item (trimmed from a real page), wrapped the way the page ships its flight data.
+  const page = (data: string) =>
+    `<script>self.__next_f.push([1,${JSON.stringify(`47:["$","$Lfa",null,{"plugins":[${data}]}]`)}])</script>`;
+  const status = (title: string) =>
+    `{"data":{"item_id":"1","seller_id":"2","theme":"SUCCESS","title":"${title}"},"exposures":[],"name":"buyer_item_status","section":"sidebar","type":"buyer_item_status"}`;
+
+  it("is false for an item that can be bought", () => {
+    expect(itemClosed(fixture("vinted-item.html"))).toBe(false);
+  });
+
+  it("is true for a sold item", () => {
+    expect(itemClosed(page(status("Vendido")))).toBe(true);
+  });
+
+  it("is false for a reserved item, which can come back", () => {
+    expect(itemClosed(page(`${status("Reservado")},{"data":{"can_buy":false,"is_reserved":true},"name":"buy"}`))).toBe(false);
   });
 });
 

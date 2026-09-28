@@ -83,22 +83,44 @@ export async function resetOlx(): Promise<void> {
   await old?.close().catch(() => {});
 }
 
+// The source loop and "Verificar anúncios" (checks.ts) share the page: one API call at a time.
+let queue: Promise<unknown> = Promise.resolve();
+
+/** GET an OLX API path from inside the page. */
+function api(path: string): Promise<{ status: number; body: string; ms: number }> {
+  const call = async () => {
+    const p = await ready();
+    const t = Date.now();
+    const r = await p.evaluate(async (path) => {
+      const res = await fetch(path, { headers: { accept: "application/json" } });
+      return { status: res.status, body: await res.text() };
+    }, path);
+    if (r.status === 403 || r.status === 429) {
+      loadedAt = 0; // reload the homepage (new cookies) before the next attempt
+      throw new BlockedError(r.status);
+    }
+    return { ...r, ms: Date.now() - t };
+  };
+  const run = queue.then(call, call);
+  queue = run.catch(() => {});
+  return run;
+}
+
 async function offers(query: Record<string, string | number>): Promise<FetchResult> {
   const qs = new URLSearchParams({ offset: "0", limit: String(PAGE_LIMIT), sort_by: "created_at:desc" });
   for (const [k, v] of Object.entries(query)) qs.set(k, String(v));
-  const p = await ready();
-  const t = Date.now();
-  const r = await p.evaluate(async (path) => {
-    const res = await fetch(path, { headers: { accept: "application/json" } });
-    return { status: res.status, body: await res.text() };
-  }, `/api/v1/offers/?${qs}`);
-  const ms = Date.now() - t;
-  if (r.status === 403 || r.status === 429) {
-    loadedAt = 0; // reload the homepage (new cookies) before the next attempt
-    throw new BlockedError(r.status);
-  }
-  if (r.status !== 200) return { status: r.status, ms, items: [], error: `HTTP ${r.status}` };
-  return { status: 200, ms, items: parseOffers(JSON.parse(r.body)) };
+  const r = await api(`/api/v1/offers/?${qs}`);
+  if (r.status !== 200) return { status: r.status, ms: r.ms, items: [], error: `HTTP ${r.status}` };
+  return { status: 200, ms: r.ms, items: parseOffers(JSON.parse(r.body)) };
+}
+
+/** Sold or removed: OLX answers 410 (or 404) for those, and 200 with status "active" while the offer is online. */
+export async function offerGone(id: string): Promise<boolean> {
+  const r = await api(`/api/v1/offers/${id}/`);
+  if (r.status === 404 || r.status === 410) return true;
+  if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+  const status = (JSON.parse(r.body) as { data?: { status?: string } }).data?.status;
+  return status != null && status !== "active";
 }
 
 export const fetchCategory = (categoryId: number) => offers({ category_id: categoryId });

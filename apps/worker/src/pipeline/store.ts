@@ -70,9 +70,10 @@ export async function storeBatch(batch: ScrapedListing[]): Promise<{ fresh: Stor
     if (!k || l.price == null || l.price === k.price) continue;
     const drop = k.price != null && l.price < k.price;
     if (!flags.dryRun) {
+      // A new price means the listing is online again, even if "Verificar anúncios" found it gone.
       const patch = drop
-        ? { price: l.price, previous_price: k.price, price_changed_at: new Date().toISOString() }
-        : { price: l.price };
+        ? { price: l.price, previous_price: k.price, price_changed_at: new Date().toISOString(), gone_at: null }
+        : { price: l.price, gone_at: null };
       const up = await db.from("listings").update(patch).eq("id", k.id);
       if (up.error) throw new Error(`listings update: ${up.error.message}`);
     }

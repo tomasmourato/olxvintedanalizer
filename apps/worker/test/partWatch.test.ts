@@ -65,6 +65,7 @@ const watchFor = (key: string): Watch => {
     active: true,
     created_at: "",
     updated_at: "",
+    priority_until: null,
   };
 };
 const listing = (title: string): ScrapedListing => ({ source: "olx", external_id: "1", title, url: "https://x", price: 50, category_id: null });

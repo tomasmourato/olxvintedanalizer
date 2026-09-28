@@ -41,7 +41,7 @@ export type Evaluation = {
   ai: AiResult | PcAiResult | null;
   /** A PC whose processor or graphics card could not be valued: why, for "Por identificar". */
   unidentified: string | null;
-  /** A PC whose parts are worth less than its price: why it is not saved anywhere (not even as "Resto"). */
+  /** A PC not saved anywhere (not even as "Resto"), and why: parts worth less than its price, or a Vinted PC in "Resto". */
   discard: string | null;
 };
 
@@ -120,6 +120,7 @@ async function evaluatePc(input: EvaluateInput): Promise<Evaluation> {
   const v = valuePc(parts, listing.price, watch);
   const veto = ok && pcVeto(ok);
   const tier = veto ? "normal" : v.suspicious && !ok && v.tier === "imperdivel" ? "bom" : v.tier;
+  const vinted = listing.source === "vinted";
   const score = veto ? Math.min(v.score, settings.candidate_threshold - 1) : v.score;
   // The parts value and margin have their own columns; the reason says what else matters.
   const byRules = "peças lidas do título e da descrição";
@@ -146,9 +147,10 @@ async function evaluatePc(input: EvaluateInput): Promise<Evaluation> {
     tier,
     held: holdBack(listing, { silent, priceDrop: previousPrice != null, tier }),
     ai,
-    // Not for the first (silent) read, which has no AI, nor for what the AI vetoed (laptops, broken, scams).
-    unidentified: silent || veto ? null : pcUnknown(parts, !!ok),
-    discard: v.margin != null && v.margin < 0 ? `margem ${v.margin} €` : null,
+    // Not for the first (silent) read, which has no AI, nor for what the AI vetoed (laptops, broken, scams),
+    // nor for Vinted (the friend only wants OLX PCs there).
+    unidentified: silent || veto || vinted ? null : pcUnknown(parts, !!ok),
+    discard: v.margin != null && v.margin < 0 ? `margem ${v.margin} €` : vinted && tier === "normal" ? "Vinted no Resto" : null,
   };
 }
 

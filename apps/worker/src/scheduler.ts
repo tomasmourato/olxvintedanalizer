@@ -1,6 +1,6 @@
-// One loop per source, one request at a time: category firehose + rotating site-wide searches,
-// jittered intervals, exponential backoff and an automatic pause after repeated blocks.
-import type { Source } from "@dh/shared";
+// One loop per source, one request at a time: category firehose + rotating site-wide searches + the categories of
+// "Prioridade" watches on a short interval, jittered intervals, exponential backoff and an automatic pause after repeated blocks.
+import type { Source, Watch } from "@dh/shared";
 import { getSettings, getWatches } from "./config.js";
 import { searchTerms } from "./pipeline/match.js";
 import { processBatch } from "./pipeline/process.js";
@@ -15,11 +15,20 @@ type Job = { kind: "category" | "search"; scope: string; run: () => Promise<Fetc
 const MAX_FAILURES = 3;
 const PAUSE_MS = 20 * 60_000;
 const GAP_MS = 3_000; // between the requests of one category cycle
+/** How often the categories of a watch with "Prioridade" on (priority_until in the future) are read. */
+const PRIORITY_MS: Record<Source, number> = { vinted: 10_000, olx: 15_000 };
+
+const priorityWatches = (source: Source) => {
+  const now = Date.now();
+  return getWatches().filter((w) => w.priority_until != null && Date.parse(w.priority_until) > now && w.sources.includes(source));
+};
 
 export class SourceLoop {
   private nextCategory = 0;
   private nextSearch = Date.now() + 20_000;
+  private nextPriority = 0;
   private rotation = 0;
+  private priorityRotation = 0;
   private failures = 0;
   private holdUntil = 0;
   private paused = false;
@@ -46,6 +55,28 @@ export class SourceLoop {
       scope,
       run: () => (this.source === "olx" ? searchOlx(t.term) : searchVinted(t.term, t.catalogIds)),
     };
+  }
+
+  /** Priority watches: their categories, plus one of the words of those without categories (in rotation). */
+  private priorityJobs(): Job[] {
+    const vinted = this.source === "vinted";
+    const ws = priorityWatches(this.source);
+    const cats = (w: Watch) => (vinted ? w.vinted_catalog_ids : w.olx_category_ids);
+    const ids = [...new Set(ws.flatMap(cats))];
+    const jobs: Job[] = vinted
+      ? ids.length
+        ? [{ kind: "category", scope: ids.join(","), run: () => fetchCatalogs(ids) }]
+        : []
+      : ids.map((id) => ({ kind: "category", scope: String(id), run: () => fetchCategory(id) }));
+    const terms = searchTerms(
+      ws.filter((w) => !cats(w).length).map((w) => ({ ...w, search_remote: true })),
+      this.source,
+    );
+    if (terms.length) {
+      const t = terms[this.priorityRotation++ % terms.length];
+      jobs.push({ kind: "search", scope: t.term, run: () => (vinted ? searchVinted(t.term) : searchOlx(t.term)) });
+    }
+    return jobs;
   }
 
   private intervals() {
@@ -96,8 +127,7 @@ export class SourceLoop {
     }
   }
 
-  private async categoryCycle(): Promise<void> {
-    const jobs = this.categoryJobs();
+  private async categoryCycle(jobs = this.categoryJobs()): Promise<void> {
     for (const [i, job] of jobs.entries()) {
       if (!(await this.exec(job))) return;
       if (i < jobs.length - 1) await sleep(jitter(GAP_MS));
@@ -129,13 +159,17 @@ export class SourceLoop {
       }
 
       const hasSearch = searchTerms(getWatches(), this.source).length > 0;
-      const due = Math.min(this.nextCategory, hasSearch ? this.nextSearch : Infinity);
+      const hasPriority = priorityWatches(this.source).length > 0;
+      const due = Math.min(this.nextCategory, hasSearch ? this.nextSearch : Infinity, hasPriority ? this.nextPriority : Infinity);
       if (due > now) {
         await sleep(Math.min(due - now, 30_000)); // wake up regularly so config changes apply
         continue;
       }
       const { category, search } = this.intervals();
-      if (this.nextCategory <= due) {
+      if (hasPriority && this.nextPriority <= due) {
+        await this.categoryCycle(this.priorityJobs());
+        this.nextPriority = Date.now() + jitter(PRIORITY_MS[this.source]);
+      } else if (this.nextCategory <= due) {
         await this.categoryCycle();
         this.nextCategory = Date.now() + jitter(category);
       } else {

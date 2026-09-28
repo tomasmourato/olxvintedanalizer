@@ -12,7 +12,9 @@ const SELECT = `id, kind, reason, created_at,
   watch:watches!inner(id, name)`;
 
 async function loadOpen() {
-  return must(await supabase.from("unidentified").select(SELECT).is("done_at", null).order("created_at", { ascending: false }).limit(300));
+  return must(
+    await supabase.from("unidentified").select(SELECT).is("done_at", null).is("listing.gone_at", null).order("created_at", { ascending: false }).limit(300),
+  );
 }
 type Item = Awaited<ReturnType<typeof loadOpen>>[number];
 
@@ -21,14 +23,23 @@ const markSeen = async (ids: number[], on: boolean) =>
 
 /** How many are still to look at, for the switch at the top of Negócios. */
 export function useUnidentifiedCount(): number | null {
-  const q = useQuery(async () => (await supabase.from("unidentified").select("id", { count: "exact", head: true }).is("done_at", null)).count ?? 0, []);
-  useRealtime("unidentified", useDebounced(q.reload));
+  const q = useQuery(
+    async () =>
+      (await supabase.from("unidentified").select("id, listing:listings!inner(gone_at)", { count: "exact", head: true }).is("done_at", null).is("listing.gone_at", null))
+        .count ?? 0,
+    [],
+  );
+  const reload = useDebounced(q.reload);
+  useRealtime("unidentified", reload);
+  useRealtime("listing_checks", reload);
   return q.data ?? null;
 }
 
 export default function Unidentified() {
   const q = useQuery(loadOpen, []);
-  useRealtime("unidentified", useDebounced(q.reload));
+  const reload = useDebounced(q.reload);
+  useRealtime("unidentified", reload);
+  useRealtime("listing_checks", reload); // a check marks listings gone as it goes
   const now = useNow();
   // Marked here but maybe not yet reloaded; the last marking can be undone for a few seconds.
   const [seen, setSeen] = useState<ReadonlySet<number>>(new Set());

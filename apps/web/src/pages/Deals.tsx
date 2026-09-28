@@ -5,6 +5,7 @@ import { errorText, must, useDebounced, useNow, useQuery, useRealtime, useStored
 import { ago, euros, pct, sourceLabel } from "../lib/format";
 import { Badge, Empty, Icon, Loading, Segmented, Select, type Tone } from "../components/ui";
 import type { IconName } from "../components/icons";
+import CheckListings from "../components/CheckListings";
 import Unidentified, { useUnidentifiedCount } from "./Unidentified";
 
 const SELECT = `id, price, median_price, discount_pct, score, tier, reason, red_flags, ai_status, notified, created_at, updated_at, parts, parts_value,
@@ -34,7 +35,14 @@ const tierTone: Record<Tier, Tone> = { imperdivel: "invert", bom: "outline", nor
 async function loadDeals(period: Period) {
   const since = new Date(Date.now() - PERIODS[period] * 86_400_000).toISOString();
   return must(
-    await supabase.from("matches").select(SELECT).gte("updated_at", since).is("dismissed_at", null).order("updated_at", { ascending: false }).limit(500),
+    await supabase
+      .from("matches")
+      .select(SELECT)
+      .gte("updated_at", since)
+      .is("dismissed_at", null)
+      .is("listing.gone_at", null) // sold or removed (Verificar anúncios)
+      .order("updated_at", { ascending: false })
+      .limit(500),
   );
 }
 type Deal = Awaited<ReturnType<typeof loadDeals>>[number];
@@ -58,7 +66,9 @@ export default function Deals() {
   const f = { ...stored, kind: stored.kind ?? "part" }; // filters saved before the PC tab existed
   const set = (patch: Partial<Filters>) => setF({ ...f, ...patch });
   const { data, error, reload } = useQuery(() => loadDeals(f.period), [f.period]);
-  useRealtime("matches", useDebounced(reload));
+  const debounced = useDebounced(reload);
+  useRealtime("matches", debounced);
+  useRealtime("listing_checks", debounced); // a check marks listings gone as it goes
   const now = useNow();
   // Deleted here but maybe not yet reloaded; the last one can be undone for a few seconds.
   const [gone, setGone] = useState<ReadonlySet<number>>(new Set());
@@ -134,6 +144,7 @@ export default function Deals() {
     return (
       <div className="space-y-4">
         {tabs}
+        <CheckListings />
         <Unidentified />
       </div>
     );
@@ -142,6 +153,7 @@ export default function Deals() {
   return (
     <div className="space-y-4">
       {tabs}
+      <CheckListings />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         <Select label="Período" value={f.period} onChange={(period) => set({ period })} options={[["24h", "24 horas"], ["7d", "7 dias"], ["30d", "30 dias"]]} />
         <Select label="Fonte" value={f.source} onChange={(source) => set({ source })} options={[["all", "Todas"], ["olx", "OLX"], ["vinted", "Vinted"]]} />

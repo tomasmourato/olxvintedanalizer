@@ -167,3 +167,23 @@ export async function itemDetails(url: string): Promise<Enrichment<ItemDetails |
   if (r.status !== 200) return { value: null, status: r.status, ms: Date.now() - t, cached: false };
   return { value: parseItemPage(await r.text()), status: 200, ms: Date.now() - t, cached: false };
 }
+
+/**
+ * Sold or hidden: the item page shows a status ("Vendido", "Oculto") in place of the buy buttons.
+ * A reserved item also shows one ("Reservado") but can come back, so it still counts as online.
+ */
+export function itemClosed(html: string): boolean {
+  const f = flight(html);
+  return f.includes('"name":"buyer_item_status"') && !f.includes('"is_reserved":true');
+}
+
+/** For "Verificar anúncios": true once the item is deleted (404/410), sold or hidden; null when the page could not be read. */
+export async function itemGone(url: string): Promise<boolean | null> {
+  const r = await spaced(url, { accept: "text/html" });
+  if (r.status === 403 || r.status === 429) throw new BlockedError(r.status);
+  if (r.status !== 200) {
+    await r.arrayBuffer();
+    return r.status === 404 || r.status === 410 ? true : null;
+  }
+  return itemClosed(await r.text());
+}
