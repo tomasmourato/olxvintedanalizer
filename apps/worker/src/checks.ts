@@ -1,20 +1,23 @@
 // "Verificar anúncios" (Negócios): the app inserts a listing_checks row; this checks every listing Negócios shows
 // (deals not deleted from the last 30 days, and Por identificar not yet seen) on OLX/Vinted and marks the ones
 // sold or removed (listings.gone_at). They leave the lists but still count in the median.
+// Vinted also gets this on its own (watchSold): one listing at a time in the background, new ones more often.
 import type { Source } from "@dh/shared";
+import { getSettings } from "./config.js";
 import { db } from "./db.js";
+import { nextDue } from "./pipeline/recheck.js";
 import { offerGone } from "./sources/olx.js";
 import { BlockedError } from "./sources/types.js";
 import { itemGone } from "./sources/vinted.js";
-import { errorText, jitter, log, sleep } from "./util.js";
+import { errorText, isActive, jitter, log, sleep } from "./util.js";
 
 const OLX_GAP_MS = 1_000; // Vinted requests are already spaced (vinted.ts spaced())
 const PROGRESS_EVERY = 10;
 const CHUNK = 200; // ids per `in (...)` query
 
-type Target = { id: number; source: Source; external_id: string; url: string };
+type Target = { id: number; source: Source; external_id: string; url: string; first_seen_at: string };
 
-async function targets(): Promise<Target[]> {
+async function targets(only?: Source): Promise<Target[]> {
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const [m, u] = await Promise.all([
     db.from("matches").select("listing_id").is("dismissed_at", null).gte("updated_at", since),
@@ -25,11 +28,13 @@ async function targets(): Promise<Target[]> {
   const ids = [...new Set([...m.data, ...u.data].map((r) => r.listing_id))];
   const out: Target[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const l = await db.from("listings").select("id, source, external_id, url").in("id", ids.slice(i, i + CHUNK)).is("gone_at", null);
+    let q = db.from("listings").select("id, source, external_id, url, first_seen_at").in("id", ids.slice(i, i + CHUNK)).is("gone_at", null);
+    if (only) q = q.eq("source", only);
+    const l = await q;
     if (l.error) throw new Error(`listings: ${l.error.message}`);
     out.push(...(l.data as Target[]));
   }
-  return out;
+  return out.sort((a, b) => Date.parse(b.first_seen_at) - Date.parse(a.first_seen_at)); // newest first
 }
 
 async function update(id: number, patch: { started_at?: string; finished_at?: string; total?: number; checked?: number; gone?: number; error?: string | null }) {
@@ -99,8 +104,89 @@ async function next(): Promise<void> {
   }
 }
 
-/** Listens for new requests (Realtime), plus every 2 min in case an event is missed. */
+const SWEEP_GAP_MS = 4_000; // between listings; vinted.ts spaced() already keeps 1.5 s from the enrichment requests
+const SWEEP_LIST_MS = 5 * 60_000; // how often the list of listings to watch is reloaded
+const SWEEP_BLOCK_PAUSE_MS = 30 * 60_000;
+const SWEEP_ROW_MS = 15 * 60_000; // finds this close together share one listing_checks row
+
+/**
+ * Takes the Vinted listings Negócios shows out of the lists once they are sold or removed, without the button:
+ * one item page at a time, in the active hours, new listings every 15 min and old ones every few hours.
+ * The app reloads on listing_checks changes, so each batch of finds is written as a (finished) listing_checks row.
+ */
+function watchSold(): () => void {
+  let stopped = false;
+  let list: Target[] = [];
+  let listAt = 0;
+  let pausedUntil = 0;
+  let row: { id: number; at: number; checked: number; gone: number } | null = null;
+  let unreported = 0; // checked since the last row was written
+  const lastChecked = new Map<number, number>();
+
+  async function report(): Promise<void> {
+    // A newer row would hide the manual check's progress in the app (it shows the newest row); that check reloads it anyway.
+    if (running) return;
+    const now = Date.now();
+    const at = new Date(now).toISOString();
+    if (row && now - row.at < SWEEP_ROW_MS) {
+      row.checked += unreported;
+      row.gone++;
+      await update(row.id, { checked: row.checked, gone: row.gone, finished_at: at });
+    } else {
+      const { data, error } = await db.from("listing_checks").insert({ started_at: at, finished_at: at, checked: unreported, gone: 1 }).select("id").single();
+      if (error) return log("verificar anúncios (automático): listing_checks insert failed:", error.message);
+      row = { id: data.id, at: now, checked: unreported, gone: 1 };
+    }
+    unreported = 0;
+  }
+
+  async function step(): Promise<number> {
+    const s = getSettings();
+    if (!isActive(s.active_from, s.active_to, s.timezone) || running || Date.now() < pausedUntil) return 30_000;
+    if (Date.now() - listAt > SWEEP_LIST_MS) {
+      list = await targets("vinted");
+      listAt = Date.now();
+      const ids = new Set(list.map((t) => t.id));
+      for (const id of lastChecked.keys()) if (!ids.has(id)) lastChecked.delete(id);
+    }
+    const t = nextDue(list, lastChecked, Date.now());
+    if (!t) return 30_000;
+    lastChecked.set(t.id, Date.now());
+    unreported++;
+    if (await itemGone(t.url)) {
+      const { error } = await db.from("listings").update({ gone_at: new Date().toISOString() }).eq("id", t.id);
+      if (error) throw new Error(`listings update: ${error.message}`);
+      list = list.filter((x) => x.id !== t.id);
+      log(`verificar anúncios (automático): vinted ${t.external_id} já não existe`);
+      await report();
+    }
+    return jitter(SWEEP_GAP_MS);
+  }
+
+  void (async () => {
+    await sleep(60_000); // let the first catalog reads and the enrichment go first
+    while (!stopped) {
+      try {
+        await sleep(await step());
+      } catch (e) {
+        if (e instanceof BlockedError) {
+          pausedUntil = Date.now() + jitter(SWEEP_BLOCK_PAUSE_MS, 0.25);
+          log(`verificar anúncios (automático): a Vinted bloqueou (HTTP ${e.status}); em pausa até ${new Date(pausedUntil).toISOString()}`);
+        } else {
+          log(`verificar anúncios (automático): ${errorText(e)}`);
+        }
+        await sleep(30_000);
+      }
+    }
+  })();
+  return () => {
+    stopped = true;
+  };
+}
+
+/** Listens for new requests (Realtime), plus every 2 min in case an event is missed. Also starts the automatic sweep. */
 export function watchChecks(): () => void {
+  const stopSold = watchSold();
   // A check cut short by a restart would show "A verificar…" forever.
   void db
     .from("listing_checks")
@@ -115,6 +201,7 @@ export function watchChecks(): () => void {
     .subscribe();
   const poll = setInterval(() => void next(), 2 * 60_000);
   return () => {
+    stopSold();
     clearInterval(poll);
     void db.removeChannel(channel);
   };

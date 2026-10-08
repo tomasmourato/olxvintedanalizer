@@ -105,8 +105,10 @@ const countryBySeller = new Map<string, string | null>();
 
 async function spaced(url: string, headers: Record<string, string>): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
-    await sleep(lastEnrich + ENRICH_GAP_MS - Date.now());
-    lastEnrich = Date.now();
+    // Take the slot before waiting: callers running at the same time (enrichment, the sold-items sweep) queue up instead of firing together.
+    const slot = Math.max(Date.now(), lastEnrich + ENRICH_GAP_MS);
+    lastEnrich = slot;
+    await sleep(slot - Date.now());
     const r = await fetch(url, { headers: { ...HEADERS, ...headers }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (r.status !== 429 || attempt === 2) return r;
     await r.arrayBuffer();
@@ -177,7 +179,7 @@ export function itemClosed(html: string): boolean {
   return f.includes('"name":"buyer_item_status"') && !f.includes('"is_reserved":true');
 }
 
-/** For "Verificar anúncios": true once the item is deleted (404/410), sold or hidden; null when the page could not be read. */
+/** For "Verificar anúncios" and the automatic sweep (checks.ts): true once the item is deleted (404/410), sold or hidden; null when the page could not be read. */
 export async function itemGone(url: string): Promise<boolean | null> {
   const r = await spaced(url, { accept: "text/html" });
   if (r.status === 403 || r.status === 429) throw new BlockedError(r.status);
