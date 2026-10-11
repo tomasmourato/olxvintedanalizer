@@ -2,11 +2,15 @@
 
 const HOUR = 3_600_000;
 
-/** How long to wait before looking at a listing again: new ones sell fast, old ones rarely change. */
+/**
+ * How long to wait before looking at a listing again: new ones sell fast, old ones rarely change, and those over a
+ * week old only show in Negócios with the 30-day period (~540 Vinted listings in all on 2026-10-11).
+ */
 export function recheckEvery(ageMs: number): number {
-  if (ageMs < 6 * HOUR) return 15 * 60_000;
-  if (ageMs < 48 * HOUR) return HOUR;
-  return 3 * HOUR;
+  if (ageMs < 6 * HOUR) return HOUR / 2;
+  if (ageMs < 48 * HOUR) return 2 * HOUR;
+  if (ageMs < 7 * 24 * HOUR) return 4 * HOUR;
+  return 12 * HOUR;
 }
 
 export type Candidate = { id: number; first_seen_at: string };

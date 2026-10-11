@@ -15,17 +15,31 @@ const OLX_GAP_MS = 1_000; // Vinted requests are already spaced (vinted.ts space
 const PROGRESS_EVERY = 10;
 const CHUNK = 200; // ids per `in (...)` query
 
-type Target = { id: number; source: Source; external_id: string; url: string; first_seen_at: string };
+const PAGE = 1000; // PostgREST's max rows per request
 
-async function targets(only?: Source): Promise<Target[]> {
+type Target = { id: number; source: Source; external_id: string; url: string; first_seen_at: string };
+type IdPage = PromiseLike<{ data: { listing_id: number }[] | null; error: { message: string } | null }>;
+
+/** All the rows, a page at a time: a single request stops at PAGE rows (Negócios had 3089 matches on 2026-10-11). */
+async function listingIds(what: string, page: (from: number, to: number) => IdPage): Promise<number[]> {
+  const out: number[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    out.push(...(data ?? []).map((r) => r.listing_id));
+    if ((data ?? []).length < PAGE) return out;
+  }
+}
+
+export async function targets(only?: Source): Promise<Target[]> {
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const [m, u] = await Promise.all([
-    db.from("matches").select("listing_id").is("dismissed_at", null).gte("updated_at", since),
-    db.from("unidentified").select("listing_id").is("done_at", null),
+    listingIds("matches", (from, to) =>
+      db.from("matches").select("listing_id").is("dismissed_at", null).gte("updated_at", since).order("id").range(from, to),
+    ),
+    listingIds("unidentified", (from, to) => db.from("unidentified").select("listing_id").is("done_at", null).order("id").range(from, to)),
   ]);
-  if (m.error) throw new Error(`matches: ${m.error.message}`);
-  if (u.error) throw new Error(`unidentified: ${u.error.message}`);
-  const ids = [...new Set([...m.data, ...u.data].map((r) => r.listing_id))];
+  const ids = [...new Set([...m, ...u])];
   const out: Target[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
     let q = db.from("listings").select("id, source, external_id, url, first_seen_at").in("id", ids.slice(i, i + CHUNK)).is("gone_at", null);
@@ -104,14 +118,14 @@ async function next(): Promise<void> {
   }
 }
 
-const SWEEP_GAP_MS = 4_000; // between listings; vinted.ts spaced() already keeps 1.5 s from the enrichment requests
+const SWEEP_GAP_MS = 8_000; // between listings; vinted.ts spaced() already keeps 1.5 s from the enrichment requests
 const SWEEP_LIST_MS = 5 * 60_000; // how often the list of listings to watch is reloaded
 const SWEEP_BLOCK_PAUSE_MS = 30 * 60_000;
 const SWEEP_ROW_MS = 15 * 60_000; // finds this close together share one listing_checks row
 
 /**
  * Takes the Vinted listings Negócios shows out of the lists once they are sold or removed, without the button:
- * one item page at a time, in the active hours, new listings every 15 min and old ones every few hours.
+ * one item page at a time, in the active hours, new listings every 30 min and old ones every few hours.
  * The app reloads on listing_checks changes, so each batch of finds is written as a (finished) listing_checks row.
  */
 function watchSold(): () => void {

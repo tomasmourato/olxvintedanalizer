@@ -8,9 +8,10 @@ const HOUR = 60 * MIN;
 
 describe("recheckEvery", () => {
   it("looks at new listings more often than old ones", () => {
-    expect(recheckEvery(HOUR)).toBe(15 * MIN);
-    expect(recheckEvery(12 * HOUR)).toBe(HOUR);
-    expect(recheckEvery(10 * 24 * HOUR)).toBe(3 * HOUR);
+    expect(recheckEvery(HOUR)).toBe(30 * MIN);
+    expect(recheckEvery(12 * HOUR)).toBe(2 * HOUR);
+    expect(recheckEvery(3 * 24 * HOUR)).toBe(4 * HOUR);
+    expect(recheckEvery(10 * 24 * HOUR)).toBe(12 * HOUR);
   });
 });
 
@@ -36,14 +37,14 @@ describe("nextDue", () => {
   });
 
   it("skips listings checked recently, by age", () => {
-    // a 1 h old listing is due again after 15 min, a 5 day old one after 3 h
+    // a 1 h old listing is due again after 30 min, a 5 day old one after 4 h
     const last = new Map([
       [1, NOW - 10 * MIN],
       [2, NOW - 2 * HOUR],
       [3, NOW - 30 * MIN],
     ]);
     expect(nextDue(list, last, NOW)).toBeNull();
-    expect(nextDue(list, new Map([...last, [1, NOW - 16 * MIN]]), NOW)?.id).toBe(1);
+    expect(nextDue(list, new Map([...last, [1, NOW - 31 * MIN]]), NOW)?.id).toBe(1);
   });
 
   it("returns null for an empty list", () => {
