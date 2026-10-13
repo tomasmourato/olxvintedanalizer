@@ -13,8 +13,21 @@ export type MatchSettings = Pick<Settings, "global_exclude" | "vinted_countries"
 export function matchWatches(listing: ScrapedListing, watches: Watch[], settings: MatchSettings): Watch[] {
   const title = normalize(listing.title);
   return fittingWatches(listing, watches, settings).filter(
-    (w) => (!w.include_any.length || w.include_any.some((t) => hasPhrase(title, t))) && w.include_all.every((t) => hasPhrase(title, t)),
+    (w) => (!w.include_any.length || w.include_any.some((t) => hasTerm(title, t))) && w.include_all.every((t) => hasTerm(title, t)),
   );
+}
+
+/**
+ * A watch's word in a normalized title. Titles often drop the GTX/RTX of a 4-digit NVIDIA model ("Gigabyte 1660 super"),
+ * so "GTX 1660 Super" also finds that model as the parser reads it, which takes a bare number only when the title shows
+ * a graphics card ("Dell OptiPlex 3050" is no RTX 3050). Like the words, "RTX 3060" also finds the 3060 Ti.
+ * RX and 3-digit models keep theirs: "580" or "970" alone could be anything.
+ */
+export function hasTerm(title: string, term: string): boolean {
+  if (hasPhrase(title, term)) return true;
+  if (!/^[gr]tx ?\d{4}/.test(normalize(term))) return false;
+  const key = parseParts(term).find((p) => p.type === "gpu")?.key;
+  return !!key && parseParts(title).some((p) => p.key === key || p.key?.startsWith(`${key}-`));
 }
 
 /** Every filter of the watch except its words: source, category, exclusions, price range, plus the global ones. */
@@ -28,7 +41,7 @@ export function fittingWatches(listing: ScrapedListing, watches: Watch[], settin
     const cats = listing.source === "olx" ? w.olx_category_ids : w.vinted_catalog_ids;
     const path = listing.category_path?.length ? listing.category_path : listing.category_id != null ? [listing.category_id] : null;
     if (cats.length && path && !cats.some((c) => path.includes(c))) return false;
-    if (w.exclude.some((t) => hasPhrase(title, t))) return false;
+    if (w.exclude.some((t) => hasTerm(title, t))) return false;
     if (w.price_min != null && (listing.price == null || listing.price < w.price_min)) return false;
     if (w.price_max != null && (listing.price == null || listing.price > w.price_max)) return false;
     return true;

@@ -93,6 +93,30 @@ describe("matchWatches", () => {
     expect(matchWatches(gpu, [watch({ vinted_catalog_ids: [3580] })], settings)).toHaveLength(0);
   });
 
+  it("finds a 4-digit NVIDIA model without its GTX/RTX, in words and exclusions", () => {
+    const super1660 = watch({ include_any: ["GTX 1660 Super"], exclude: [], price_max: 80 });
+    expect(matchWatches(listing({ title: "Gigabyte 1660 super", price: 65 }), [super1660], settings)).toHaveLength(1);
+    expect(matchWatches(listing({ title: "Gigabyte 1660super", price: 65 }), [super1660], settings)).toHaveLength(1);
+    expect(matchWatches(listing({ title: "Gigabyte 1660 ti", price: 65 }), [super1660], settings)).toHaveLength(0);
+    const rtx3060 = watch({ include_any: ["rtx 3060"], exclude: ["rtx 3060 ti"] });
+    expect(matchWatches(listing({ title: "MSI 3060 Ti 8GB" }), [rtx3060], settings)).toHaveLength(0);
+    expect(matchWatches(listing({ title: "MSI 3060 12GB" }), [rtx3060], settings)).toHaveLength(1);
+  });
+
+  it("keeps the RX of AMD models and the GTX of 3-digit ones", () => {
+    expect(matchWatches(listing({ title: "Sapphire 580 8GB" }), [watch({ include_any: ["rx 580"], exclude: [] })], settings)).toHaveLength(0);
+    expect(matchWatches(listing({ title: "Asus 970 4GB" }), [watch({ include_any: ["gtx 970"], exclude: [] })], settings)).toHaveLength(0);
+  });
+
+  it("does not take other things with the same number for the card", () => {
+    const rtx3050 = watch({ include_any: ["RTX 3050"], exclude: [], price_max: 200 });
+    for (const title of ["Dell optiplex 3050", "Fonte alimentação Dell 3050", "Impressora HP Deskjet 3050", "Celeron N3050 4/128"]) {
+      expect(matchWatches(listing({ title, price: 50 }), [rtx3050], settings)).toHaveLength(0);
+    }
+    const gtx1660 = watch({ include_any: ["gtx 1660"], exclude: [], price_max: 200 });
+    expect(matchWatches(listing({ title: "Module carte bandeau 7719016600", price: 25 }), [gtx1660], settings)).toHaveLength(0);
+  });
+
   it("an empty include list matches anything in the categories", () => {
     expect(matchWatches(listing({ title: "Monitor 27" }), [watch({ include_any: [], exclude: [], price_max: null })], settings)).toHaveLength(1);
   });

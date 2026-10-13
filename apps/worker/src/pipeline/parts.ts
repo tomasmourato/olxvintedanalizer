@@ -51,6 +51,14 @@ function bucket(value: number, sizes: number[]): number | null {
   return best;
 }
 
+// A bare 4-digit number is an NVIDIA card only with a GPU word, a card maker, gaming, Ti/Super or the VRAM right after it
+// ("Gigabyte 1660 super", "3060 12g"). Else it is usually a Dell (OptiPlex 3050, Wyse 5070), a printer (Deskjet 3050) or "1080p".
+const GPU_HINTS = [...WORDS.gpu, "nvidia", "gtx", "rtx", "rt", "gt", "vram", "oc", "founders", "gaming", "gamer", "asus", "rog", "strix",
+  "tuf", "astral", "msi", "ventus", "gigabyte", "aorus", "eagle", "windforce", "zotac", "evga", "palit", "gainward", "pny", "inno3d", "kfa2",
+  "galax"];
+const showsGpu = (t: string, suffix: string | undefined, after: string) =>
+  !!suffix || /^ ?\d{1,2} ?g[bo]?(?![a-z0-9])/.test(after) || GPU_HINTS.some((w) => hasPhrase(t, w));
+
 function gpus(t: string): Part[] {
   const out: Part[] = [];
   for (const m of t.matchAll(/(?<![a-z0-9])(gtx|rtx|rx)? ?(\d{3,4}) ?(ti ?super|ti|super|xtx|xt|gre)?(?![a-z0-9])/g)) {
@@ -62,7 +70,9 @@ function gpus(t: string): Part[] {
       if (!AMD.has(n)) continue;
       fam = "rx";
     } else if (NVIDIA.has(n) && (prefix || n >= 1000)) {
-      // Without a prefix, a 4-digit NVIDIA number still counts unless it belongs to a CPU ("i5 1060" does not exist, but be safe).
+      // Without a prefix, a 4-digit NVIDIA number counts when the title shows a graphics card, unless it belongs to a CPU
+      // ("i5 1060" does not exist, but be safe).
+      if (!prefix && !showsGpu(t, suffix, t.slice(m.index + m[0].length))) continue;
       if (!prefix && /(?:\bi[3579]|\bryzen(?: [3579])?|\br[3579]) ?$/.test(t.slice(0, m.index))) continue;
       fam = n >= 2000 ? "rtx" : "gtx";
     } else continue;

@@ -60,6 +60,17 @@ describe("singlePart", () => {
     expect(key("Disco Externo 750GB — Testado e Funcional")).toBeNull();
   });
 
+  it("takes a number without GTX/RTX for a card only when the title shows one", () => {
+    expect(key("Gigabyte 1660 super")).toBe("gpu:gtx-1660-super");
+    expect(key("3060 12g")).toBe("gpu:rtx-3060");
+    expect(key("Rtx force 2060")).toBe("gpu:rtx-2060");
+    expect(parseParts("Pc gaming 1060 i5").map((p) => p.key)).toContain("gpu:gtx-1060");
+    for (const title of ["Dell OptiPlex 3050 Sff – Core i3-7100 , 8 Go Ram ,256 Go Ssd", "Dell wyse 5070 Thin Client", "Webcam Pro 1080 p",
+      "Impressora HP Deskjet 3050", "PC completo Dell Optiplex 3060 i5 8500"]) {
+      expect(parseParts(title).some((p) => p.type === "gpu")).toBe(false);
+    }
+  });
+
   it("needs a model", () => {
     expect(key("Carte graphique NVIDIA")).toBeNull();
     expect(key("Ram Corsair 32 gb")).toBeNull();
