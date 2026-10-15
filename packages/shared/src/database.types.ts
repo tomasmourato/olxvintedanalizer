@@ -323,6 +323,82 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          ceiling: number | null
+          created_at: string
+          error: string | null
+          id: number
+          listing_id: number | null
+          match_id: number | null
+          price: number | null
+          shipping: number | null
+          skip_reason: string | null
+          source: string
+          status: string
+          total: number | null
+          updated_at: string
+          vinted_transaction_id: string | null
+          watch_id: string | null
+        }
+        Insert: {
+          ceiling?: number | null
+          created_at?: string
+          error?: string | null
+          id?: never
+          listing_id?: number | null
+          match_id?: number | null
+          price?: number | null
+          shipping?: number | null
+          skip_reason?: string | null
+          source: string
+          status: string
+          total?: number | null
+          updated_at?: string
+          vinted_transaction_id?: string | null
+          watch_id?: string | null
+        }
+        Update: {
+          ceiling?: number | null
+          created_at?: string
+          error?: string | null
+          id?: never
+          listing_id?: number | null
+          match_id?: number | null
+          price?: number | null
+          shipping?: number | null
+          skip_reason?: string | null
+          source?: string
+          status?: string
+          total?: number | null
+          updated_at?: string
+          vinted_transaction_id?: string | null
+          watch_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_watch_id_fkey"
+            columns: ["watch_id"]
+            isOneToOne: false
+            referencedRelation: "watches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth: string
@@ -409,6 +485,9 @@ export type Database = {
           active_from: string
           active_to: string
           ai_enabled: boolean
+          auto_buy_daily_cap: number
+          auto_buy_enabled: boolean
+          auto_buy_max_default: number | null
           candidate_threshold: number
           global_context: string
           global_exclude: string[]
@@ -429,6 +508,9 @@ export type Database = {
           active_from?: string
           active_to?: string
           ai_enabled?: boolean
+          auto_buy_daily_cap?: number
+          auto_buy_enabled?: boolean
+          auto_buy_max_default?: number | null
           candidate_threshold?: number
           global_context?: string
           global_exclude?: string[]
@@ -449,6 +531,9 @@ export type Database = {
           active_from?: string
           active_to?: string
           ai_enabled?: boolean
+          auto_buy_daily_cap?: number
+          auto_buy_enabled?: boolean
+          auto_buy_max_default?: number | null
           candidate_threshold?: number
           global_context?: string
           global_exclude?: string[]
@@ -515,6 +600,8 @@ export type Database = {
       watches: {
         Row: {
           active: boolean
+          auto_buy: boolean
+          auto_buy_max: number | null
           category: string
           context: string
           created_at: string
@@ -539,6 +626,8 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          auto_buy?: boolean
+          auto_buy_max?: number | null
           category?: string
           context?: string
           created_at?: string
@@ -563,6 +652,8 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          auto_buy?: boolean
+          auto_buy_max?: number | null
           category?: string
           context?: string
           created_at?: string

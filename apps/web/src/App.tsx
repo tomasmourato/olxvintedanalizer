@@ -5,6 +5,7 @@ import { syncSubscription } from "./lib/push";
 import { must, useDebounced, useHashRoute, useNow, useQuery, useRealtime } from "./lib/live";
 import Login from "./pages/Login";
 import Deals from "./pages/Deals";
+import Purchases from "./pages/Purchases";
 import Watches from "./pages/Watches";
 import Prices from "./pages/Prices";
 import Notifications from "./pages/Notifications";
@@ -75,7 +76,7 @@ function Shell({ email }: { email: string }) {
       </header>
 
       <main className="mx-auto max-w-2xl p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-        {tab.path === "negocios" && <Deals />}
+        {tab.path === "negocios" && (id === "compras" ? <Purchases /> : <Deals />)}
         {tab.path === "pesquisas" && (id === "precos" ? <Prices /> : <Watches id={id} />)}
         {tab.path === "alertas" && <Notifications />}
         {tab.path === "logs" && <Logs worker={worker.data} settings={settings.data} />}

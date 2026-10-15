@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
 import type { Settings as SettingsRow, Source, Update } from "@dh/shared";
 import { supabase } from "../lib/supabase";
-import { errorText, must, useQuery } from "../lib/live";
+import { errorText, go, must, useQuery } from "../lib/live";
 import { CATEGORIES, categoryName } from "../lib/categories";
-import { ago, when } from "../lib/format";
+import { ago, parsePrice, priceText, when } from "../lib/format";
 import { currentEndpoint } from "../lib/push";
 import { Badge, Button, Card, Field, Icon, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
 import PushCard from "../components/PushCard";
@@ -27,6 +27,9 @@ type Draft = {
   notify_threshold: string;
   ai_enabled: boolean;
   push_enabled: boolean;
+  auto_buy_enabled: boolean;
+  auto_buy_daily_cap: string;
+  auto_buy_max_default: string;
   active_from: string;
   active_to: string;
   global_exclude: string[];
@@ -54,6 +57,9 @@ function toDraft(s: SettingsRow): Draft {
     notify_threshold: String(s.notify_threshold),
     ai_enabled: s.ai_enabled,
     push_enabled: s.push_enabled,
+    auto_buy_enabled: s.auto_buy_enabled,
+    auto_buy_daily_cap: priceText(s.auto_buy_daily_cap),
+    auto_buy_max_default: priceText(s.auto_buy_max_default),
     active_from: s.active_from.slice(0, 5),
     active_to: s.active_to.slice(0, 5),
     global_exclude: s.global_exclude,
@@ -82,6 +88,8 @@ function toRow(d: Draft): Update<"settings"> {
     ...d,
     candidate_threshold: candidate,
     notify_threshold: notify,
+    auto_buy_daily_cap: parsePrice(d.auto_buy_daily_cap, "Limite diário de auto-compra") ?? 0,
+    auto_buy_max_default: parsePrice(d.auto_buy_max_default, "Teto de auto-compra por omissão"),
     ...(Object.fromEntries(INTERVALS.map(([key, label, min]) => [key, int(d[key], label, min)])) as Record<IntervalKey, number>),
   };
 }
@@ -144,6 +152,30 @@ function SettingsForm({ settings, onSaved }: { settings: SettingsRow; onSaved: (
               <Field label="Imperdível a partir de" type="number" inputMode="numeric" min={0} max={100} value={d.notify_threshold} onChange={(e) => set({ notify_threshold: e.target.value })} hint="Estes mandam push." />
             </div>
           </details>
+        </div>
+      </Card>
+
+      <Card title="Auto-compra (Vinted)">
+        <div className="space-y-3">
+          <p className="rounded-xl border border-amber-900/60 bg-amber-950/30 p-2.5 text-xs text-amber-200/90">
+            Compra peças no Vinted automaticamente quando são imperdíveis e ficam dentro do teto. <strong>Fase 1: só simula</strong> — nada é
+            comprado a sério; vê em Negócios → Compras o que teria comprado. Automatizar compras vai contra os Termos do Vinted e arrisca a conta
+            (ban, saldo perdido). Paga sempre pelo saldo da carteira Vinted, nunca por cartão.
+          </p>
+          <Toggle
+            label="Ativar auto-compra (interruptor geral)"
+            hint="Desligado, o worker nunca compra. A simulação da Fase 1 funciona na mesma; isto é o que, na Fase 2, autoriza a compra a sério."
+            checked={d.auto_buy_enabled}
+            onChange={(auto_buy_enabled) => set({ auto_buy_enabled })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Limite diário €" inputMode="decimal" value={d.auto_buy_daily_cap} onChange={(e) => set({ auto_buy_daily_cap: e.target.value })} hint="0 = não compra (nem simula). Gasto máximo por dia." />
+            <Field label="Teto por omissão €" inputMode="decimal" value={d.auto_buy_max_default} onChange={(e) => set({ auto_buy_max_default: e.target.value })} hint="Usado quando a pesquisa não define o seu teto." />
+          </div>
+          <button type="button" onClick={() => go("negocios/compras")} className="inline-flex items-center gap-1 text-sm text-neutral-300 hover:text-white">
+            Ver simulação de compras
+            <Icon name="chevronRight" className="size-4" />
+          </button>
         </div>
       </Card>
 

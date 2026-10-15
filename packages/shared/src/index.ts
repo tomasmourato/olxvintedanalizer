@@ -12,6 +12,7 @@ export type Listing = Row<"listings">;
 export type Match = Row<"matches">;
 export type Run = Row<"runs">;
 export type Notification = Row<"notifications">;
+export type Purchase = Row<"purchases">;
 export type WorkerStatus = Row<"worker_status">;
 export type PushSubscriptionRow = Row<"push_subscriptions">;
 
