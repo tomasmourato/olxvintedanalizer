@@ -6,7 +6,7 @@ import { Badge, Empty, Icon, Loading, Segmented } from "../components/ui";
 import type { IconName } from "../components/icons";
 
 const LIMIT = 200;
-const icon: Record<PushKind, IconName> = { deal: "fire", price_drop: "trendingDown", worker_offline: "warning", test: "beaker" };
+const icon: Record<PushKind, IconName> = { deal: "fire", price_drop: "trendingDown", worker_offline: "warning", test: "beaker", bought: "check", buy_failed: "warning", buy_sca: "question" };
 type Filter = "all" | "deals" | "failed";
 
 export default function Notifications() {

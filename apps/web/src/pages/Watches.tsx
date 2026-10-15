@@ -126,12 +126,13 @@ function summary(w: Watch): string {
       : [w.target_price != null && `imperdível até ${euros(w.target_price)}`, w.good_price != null && `bom até ${euros(w.good_price)}`]),
     w.price_min != null && `mín. ${euros(w.price_min)}`,
     w.price_max != null && `máx. ${euros(w.price_max)}`,
+    w.auto_buy && `auto-compra até ${euros(w.auto_buy_max)}`,
   ].filter(Boolean);
   return [terms, ...prices].join(" · ");
 }
 
 // target_price is "Imperdível até", good_price is "Bom até"; a PC watch uses the margins instead.
-type Money = "price_min" | "price_max" | "target_price" | "good_price" | "margin_good" | "margin_great";
+type Money = "price_min" | "price_max" | "target_price" | "good_price" | "margin_good" | "margin_great" | "auto_buy_max";
 type Draft = Required<Omit<Insert<"watches">, Money | "kind" | "id" | "created_at" | "updated_at">> & {
   kind: WatchKind;
   margin_good: string;
@@ -141,6 +142,7 @@ type Draft = Required<Omit<Insert<"watches">, Money | "kind" | "id" | "created_a
   price_max: string;
   target_price: string;
   good_price: string;
+  auto_buy_max: string;
 };
 
 
@@ -172,6 +174,8 @@ function toDraft(w?: Partial<Watch>): Draft {
     context: w?.context ?? "",
     active: w?.active ?? true,
     priority_until: w?.priority_until ?? null,
+    auto_buy: w?.auto_buy ?? false,
+    auto_buy_max: priceText(w?.auto_buy_max ?? null),
   };
 }
 
@@ -213,10 +217,16 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
         good_price: pc ? null : parsePrice(d.good_price, "Bom até"),
         margin_good: pc ? parsePrice(d.margin_good, "Bom com margem de") : null,
         margin_great: pc ? parsePrice(d.margin_great, "Imperdível com margem de") : null,
+        auto_buy: pc ? false : d.auto_buy,
+        auto_buy_max: pc ? null : parsePrice(d.auto_buy_max, "Auto-compra até"),
       };
       if (pc) row.target_price = null;
       if (!row.name) throw new Error("Dá um nome à pesquisa.");
       if (!row.sources.length) throw new Error("Escolhe pelo menos uma fonte.");
+      if (row.auto_buy) {
+        if (!row.sources.includes("vinted")) throw new Error("A auto-compra só funciona no Vinted: inclui o Vinted nas fontes.");
+        if (row.auto_buy_max == null) throw new Error("A auto-compra precisa de um teto (Auto-compra até).");
+      }
       if (pc) {
         if ((row.sources.includes("olx") && !row.olx_category_ids.length) || (row.sources.includes("vinted") && !row.vinted_catalog_ids.length)) {
           throw new Error("Escolhe as categorias de computadores em cada fonte (OLX: Computadores; Vinted: Computadores de secretária).");
@@ -294,6 +304,14 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
             checked={priorityOn(d.priority_until)}
             onChange={(on) => set({ priority_until: on ? new Date(Date.now() + PRIORITY_DAYS * 86_400_000).toISOString() : null })}
           />
+          {!pc && (
+            <Toggle
+              label="Auto-comprar no Vinted"
+              hint="Compra automaticamente quando o anúncio é imperdível e o preço fica dentro do teto (abaixo). Só peças, só Vinted, e só se a IA aprovar. Fase 1: só simula — vê o resultado em Negócios → Compras. Precisa do interruptor geral ligado nas Definições."
+              checked={d.auto_buy}
+              onChange={(auto_buy) => set({ auto_buy })}
+            />
+          )}
         </div>
       </Card>
 
@@ -339,6 +357,16 @@ function WatchForm({ watch, categories, onDone }: { watch?: Watch; categories: s
               <p className="text-xs text-neutral-500">
                 Até ao preço de Imperdível manda push; até ao de Bom aparece em Bons. A IA só trava anúncios com problemas (não é o produto, avariado, só a caixa, burla). Sem estes preços, o nível vem da pontuação 0–100 (mediana dos últimos 30 dias e IA).
               </p>
+              {d.auto_buy && (
+                <Field
+                  label="Auto-compra até €"
+                  inputMode="decimal"
+                  value={d.auto_buy_max}
+                  onChange={(e) => set({ auto_buy_max: e.target.value })}
+                  placeholder="ex.: 180"
+                  hint="Preço do artigo no máximo este valor para a auto-compra disparar (portes à parte na simulação)."
+                />
+              )}
             </>
           )}
           <div className="grid grid-cols-2 gap-2">

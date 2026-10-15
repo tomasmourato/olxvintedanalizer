@@ -10,6 +10,7 @@ import { sendPush } from "../push.js";
 import { logRun } from "../status.js";
 import { errorText, flags, log } from "../util.js";
 import { askModel } from "./ai.js";
+import { maybeBuy } from "./buy.js";
 import { evaluate } from "./evaluate.js";
 import { matchWatches, unnamedWatches, watchType } from "./match.js";
 import { hasModelNumber, unnamedTypes } from "./parts.js";
@@ -33,6 +34,7 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
     // The model read from the description goes in the title the evaluation, the app and the push see.
     const l = model ? { ...entry.listing, title: `${entry.listing.title} (${model})` } : entry.listing;
     let pushed = false; // one push per listing, even when several watches rate it top
+    let bought = false; // one auto-buy attempt per listing, even when several watches rate it top
 
     for (const watch of matched) {
       const e = await evaluate({
@@ -59,6 +61,10 @@ export async function processBatch(source: Source, items: ScrapedListing[], sile
         `${silent ? "[silencioso] " : ""}match ${source} "${l.title}" ${l.price ?? "?"} €${drop} → ${watch.name}: ` +
           `${e.row.score} ${e.tier}${ai}${pc} — ${e.row.reason}`,
       );
+      // Auto-compra (Vinted, só peças): Fase 1 só simula. Um só por anúncio, mesmo com várias pesquisas.
+      if (await maybeBuy({ listing: l, evaluation: e, watch, settings: getSettings(), silent, dismissed, alreadyActioned: bought }, { matchId, listingId: entry.id, settings: getSettings() })) {
+        bought = true;
+      }
       if (e.held || dismissed) {
         if (e.tier === "imperdivel") log(`sem push (${e.held ?? "apagado na app"}): ${l.title}`);
       } else if (!pushed) {

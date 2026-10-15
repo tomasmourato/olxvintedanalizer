@@ -9,7 +9,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "build:web": "npm run build -w @dh/web",
-    "db:types": "supabase gen types --lang typescript --linked > packages/shared/src/database.types.ts"
+    "db:types": "npx --yes supabase gen types --lang typescript --linked > packages/shared/src/database.types.ts"
   },
   "engines": {
     "node": ">=22"

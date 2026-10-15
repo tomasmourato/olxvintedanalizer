@@ -29,6 +29,8 @@ const watch = (over: Partial<Watch> = {}): Watch => ({
   created_at: "",
   updated_at: "",
   priority_until: null,
+  auto_buy: false,
+  auto_buy_max: null,
   ...over,
 });
 const listing = (title: string, price = 150, over: Partial<ScrapedListing> = {}): ScrapedListing => ({

@@ -66,6 +66,8 @@ const watchFor = (key: string): Watch => {
     created_at: "",
     updated_at: "",
     priority_until: null,
+    auto_buy: false,
+    auto_buy_max: null,
   };
 };
 const listing = (title: string): ScrapedListing => ({ source: "olx", external_id: "1", title, url: "https://x", price: 50, category_id: null });

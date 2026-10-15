@@ -11,4 +11,4 @@ export type PushPayload = {
   ts?: number;
 };
 
-export type PushKind = "deal" | "price_drop" | "worker_offline" | "test";
+export type PushKind = "deal" | "price_drop" | "worker_offline" | "test" | "bought" | "buy_failed" | "buy_sca";

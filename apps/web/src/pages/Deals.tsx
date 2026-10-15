@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { PcPart, Tier, WatchKind } from "@dh/shared";
 import { supabase } from "../lib/supabase";
-import { errorText, must, useDebounced, useNow, useQuery, useRealtime, useStored } from "../lib/live";
+import { errorText, go, must, useDebounced, useNow, useQuery, useRealtime, useStored } from "../lib/live";
 import { ago, euros, pct, sourceLabel } from "../lib/format";
 import { Badge, Empty, Icon, Loading, Segmented, Select, type Tone } from "../components/ui";
 import type { IconName } from "../components/icons";
@@ -154,6 +154,17 @@ export default function Deals() {
     <div className="space-y-4">
       {tabs}
       <CheckListings />
+      <button
+        type="button"
+        onClick={() => go("negocios/compras")}
+        className="flex w-full items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-left text-sm text-neutral-300 hover:border-neutral-600"
+      >
+        <span className="inline-flex items-center gap-2">
+          <Icon name="tag" className="size-4 text-neutral-500" />
+          Compras automáticas (simulação)
+        </span>
+        <Icon name="chevronRight" className="size-4 text-neutral-600" />
+      </button>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         <Select label="Período" value={f.period} onChange={(period) => set({ period })} options={[["24h", "24 horas"], ["7d", "7 dias"], ["30d", "30 dias"]]} />
         <Select label="Fonte" value={f.source} onChange={(source) => set({ source })} options={[["all", "Todas"], ["olx", "OLX"], ["vinted", "Vinted"]]} />
