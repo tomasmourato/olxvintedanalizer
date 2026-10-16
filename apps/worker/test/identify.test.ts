@@ -1,8 +1,7 @@
-import type { PcPart, Watch } from "@dh/shared";
+import { unnamedTypes, type PcPart, type Watch } from "@dh/shared";
 import { describe, expect, it } from "vitest";
 import { modelPrompt } from "../src/pipeline/ai.js";
 import { unnamedWatches, watchType } from "../src/pipeline/match.js";
-import { unnamedTypes } from "../src/pipeline/parts.js";
 import { pcUnknown } from "../src/pipeline/pc.js";
 import type { ScrapedListing } from "../src/sources/types.js";
 

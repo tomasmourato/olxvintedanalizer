@@ -3,18 +3,16 @@
 // Vinted PT) when there are enough, else the whole EU (maths in market.ts). The friend's own value
 // (manual_value, edited in the app) always wins over it. For PC valuation, a part with neither falls back to the
 // AI's estimate (ai_value), saved the first time a PC listing names the part.
-import type { PcPart, Source } from "@dh/shared";
+import { partValue, type PartValue, type PcPart, type Source } from "@dh/shared";
 import { getSettings } from "../config.js";
 import { db } from "../db.js";
 import { errorText, flags, log } from "../util.js";
 import { marketPrices, type Sample } from "./market.js";
-import type { PartValue } from "./pc.js";
 
 const DAYS = 30;
 const REFRESH_MS = 6 * 3600_000;
 const PAGE = 1000; // PostgREST's max rows per request
 const VALUES_TTL_MS = 5 * 60_000; // a value edited in the app counts within 5 min
-const AI_VALUE_DAYS = 30; // then the next PC with the part asks again
 
 export async function refreshMarketPrices(): Promise<void> {
   const since = new Date(Date.now() - DAYS * 86400_000).toISOString();
@@ -72,11 +70,9 @@ export async function partValues(): Promise<ReadonlyMap<string, PartValue>> {
       .order("key")
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`part_prices: ${error.message}`);
-    const aiSince = Date.now() - AI_VALUE_DAYS * 86400_000;
     for (const r of data) {
-      if (r.manual_value != null) map.set(r.key, { value: Number(r.manual_value), source: "manual", samples: r.samples });
-      else if (r.market_value != null) map.set(r.key, { value: Number(r.market_value), source: "mercado", samples: r.samples });
-      else if (r.ai_value != null && r.ai_at && Date.parse(r.ai_at) > aiSince) map.set(r.key, { value: Number(r.ai_value), source: "ia", samples: 0 });
+      const v = partValue(r);
+      if (v) map.set(r.key, v);
     }
     if (data.length < PAGE) break;
   }

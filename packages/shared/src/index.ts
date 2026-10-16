@@ -25,3 +25,6 @@ export type { PushKind, PushPayload } from "./push.js";
 export { clockIn, isActive } from "./time.js";
 export { fmtEuros, fmtNumber } from "./format.js";
 export { partWatch, type PartRef, type PartWatch } from "./partWatch.js";
+export { hasPhrase, normalize } from "./text.js";
+export { hasModelNumber, parseModel, parseParts, singlePart, titleRamSpec, unnamedTypes, type Part, type PartType } from "./parts.js";
+export { margins, PART_NAME, partValue, priceParts, valuePc, type Named, type PartValue, type PcValuation } from "./pcValue.js";

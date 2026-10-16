@@ -1,7 +1,5 @@
-import type { Settings, Watch } from "@dh/shared";
+import { hasPhrase, normalize, parseParts, titleRamSpec, type Part, type PartType, type Settings, type Watch } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
-import { parseParts, titleRamSpec, type Part, type PartType } from "./parts.js";
-import { hasPhrase, normalize } from "./text.js";
 
 export type MatchSettings = Pick<Settings, "global_exclude" | "vinted_countries">;
 

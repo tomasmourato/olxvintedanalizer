@@ -1,7 +1,6 @@
-import type { Watch } from "@dh/shared";
+import { hasPhrase, normalize, type Watch } from "@dh/shared";
 import { describe, expect, it } from "vitest";
 import { matchWatches, searchTerms } from "../src/pipeline/match.js";
-import { hasPhrase, normalize } from "../src/pipeline/text.js";
 import type { ScrapedListing } from "../src/sources/types.js";
 import { isActive } from "../src/util.js";
 

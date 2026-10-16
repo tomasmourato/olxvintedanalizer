@@ -1,10 +1,10 @@
 // One (listing, watch) match → the matches row + push decision. Part watches: median, rules score, Gemini for
 // candidates. PC watches (kind "pc"): Gemini names the parts, part_prices values them, the margin sets the tier (pc.ts).
-import type { Insert, Settings, Tier, Watch } from "@dh/shared";
+import { priceParts, valuePc, type Insert, type Settings, type Tier, type Watch } from "@dh/shared";
 import { db } from "../db.js";
 import type { ScrapedListing } from "../sources/types.js";
 import { aiAvailable, askAi, askPcParts, type AiResult, type PcAiResult } from "./ai.js";
-import { aiParts, mergeParts, pcUnknown, pcVeto, priceParts, rulesParts, valuePc } from "./pc.js";
+import { aiParts, mergeParts, pcUnknown, pcVeto, rulesParts } from "./pc.js";
 import { partValues, saveEstimates } from "./prices.js";
 import { holdBack, median, priceTier, ruleScore, rulesOnly, tierFor, vetoed } from "./score.js";
 

@@ -5,10 +5,9 @@
 // sem tocar na base de dados nem no kill switch (esse só decide comprar a sério, na Fase 2). `maybeBuy` acrescenta
 // a desduplicação, o limite diário e o registo. A compra real (sources/vintedBuy.ts) e a ligação da conta Vinted
 // chegam na Fase 2 — ver o plano em /root/.claude/plans.
-import { fmtEuros, type Insert, type Settings, type Watch } from "@dh/shared";
+import { fmtEuros, singlePart, type Insert, type Part, type PartType, type Settings, type Watch } from "@dh/shared";
 import type { ScrapedListing } from "../sources/types.js";
 import { flags, log } from "../util.js";
-import { singlePart, type Part, type PartType } from "./parts.js";
 import type { Evaluation } from "./evaluate.js";
 import type { AiResult, PcAiResult } from "./ai.js";
 

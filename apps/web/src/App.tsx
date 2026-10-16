@@ -10,6 +10,7 @@ import Watches from "./pages/Watches";
 import Prices from "./pages/Prices";
 import Notifications from "./pages/Notifications";
 import Logs, { workerOnline } from "./pages/Logs";
+import Calculator from "./pages/Calculator";
 import Settings from "./pages/Settings";
 import { Dot, Icon, Logo } from "./components/ui";
 import PullToRefresh from "./components/PullToRefresh";
@@ -19,7 +20,7 @@ const TABS: { path: string; label: string; icon: IconName }[] = [
   { path: "negocios", label: "Negócios", icon: "tag" },
   { path: "pesquisas", label: "Pesquisas", icon: "search" },
   { path: "alertas", label: "Alertas", icon: "bell" },
-  { path: "logs", label: "Logs", icon: "list" },
+  { path: "calculadora", label: "Calculadora", icon: "calculator" },
   { path: "definicoes", label: "Definições", icon: "sliders" },
 ];
 
@@ -45,7 +46,12 @@ function Shell({ email }: { email: string }) {
   const [page = "negocios", id] = useHashRoute();
   const tab = TABS.find((t) => t.path === page) ?? TABS[0];
 
-  // App-wide: the header shows the worker state; Logs and Settings use both.
+  // Logs moved into Definições (the Logs tab became the calculator): old links still open them.
+  useEffect(() => {
+    if (page === "logs") location.replace("#/definicoes/logs");
+  }, [page]);
+
+  // App-wide: the header shows the worker state; Settings and its Logs use both.
   const settings = useQuery(async () => must(await supabase.from("settings").select("*").single()), []);
   useRealtime("settings", useDebounced(settings.reload, 300));
   const worker = useQuery(async () => must(await supabase.from("worker_status").select("*").eq("id", "main").maybeSingle()), []);
@@ -67,7 +73,7 @@ function Shell({ email }: { email: string }) {
             <h1 className="text-lg font-semibold tracking-tight">{tab.label}</h1>
           </div>
           {worker.data !== undefined && (
-            <a href="#/logs" className="flex items-center gap-1.5 rounded-full border border-neutral-800 px-2.5 py-1 text-xs text-neutral-400">
+            <a href="#/definicoes/logs" className="flex items-center gap-1.5 rounded-full border border-neutral-800 px-2.5 py-1 text-xs text-neutral-400">
               <Dot on={online} />
               Worker {online ? "online" : "offline"}
             </a>
@@ -79,8 +85,9 @@ function Shell({ email }: { email: string }) {
         {tab.path === "negocios" && (id === "compras" ? <Purchases /> : <Deals />)}
         {tab.path === "pesquisas" && (id === "precos" ? <Prices /> : <Watches id={id} />)}
         {tab.path === "alertas" && <Notifications />}
-        {tab.path === "logs" && <Logs worker={worker.data} settings={settings.data} />}
-        {tab.path === "definicoes" && <Settings settings={settings.data} email={email} onSaved={settings.reload} />}
+        {tab.path === "calculadora" && <Calculator />}
+        {tab.path === "definicoes" &&
+          (id === "logs" ? <Logs worker={worker.data} settings={settings.data} /> : <Settings settings={settings.data} email={email} online={worker.data === undefined ? null : online} onSaved={settings.reload} />)}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-neutral-900 bg-black/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">

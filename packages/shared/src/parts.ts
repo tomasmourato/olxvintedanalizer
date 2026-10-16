@@ -1,4 +1,5 @@
-// Title → PC parts with a canonical key ("gpu:rtx-3060-ti", "ram:ddr4-16"), for market prices and PC valuation.
+// Title → PC parts with a canonical key ("gpu:rtx-3060-ti", "ram:ddr4-16"), for market prices, PC valuation and the
+// app's calculator.
 // Deterministic regexes over normalized text. A part type mentioned without a model ("placa gráfica 8GB")
 // comes back with key null. Titles are multilingual (Vinted is EU-wide), so the words cover pt/es/fr/it/nl/de.
 import { hasPhrase, normalize } from "./text.js";
@@ -180,6 +181,19 @@ export function parseParts(title: string): Part[] {
     if (named && !out.some((p) => p.type === type)) out.push({ type, key: null, label: null });
   }
   return out;
+}
+
+// Keyword the parser needs to recognise a bare model name of a known type ("650W" → "fonte 650W", "3060" → "grafica 3060").
+const HINT: Partial<Record<PartType, string>> = { gpu: "grafica", psu: "fonte", motherboard: "motherboard", ram: "ram" };
+
+/** A model named for a known part type (the AI's answer, a calculator field) → that part with its key, or null. */
+export function parseModel(type: PartType, model: string): Part | null {
+  const find = (text: string) => parseParts(text).find((p) => p.type === type && p.key) ?? null;
+  const hint = HINT[type];
+  const part = find(hint && !normalize(model).includes(hint) ? `${hint} ${model}` : model);
+  // A bare Ryzen number ("3600"): Intel models are written with their i3/i5/i7/i9.
+  if (!part && type === "cpu" && /^\d{4}[a-z0-9]*$/.test(normalize(model).replaceAll(" ", ""))) return find(`ryzen ${model}`);
+  return part;
 }
 
 // Titles that are not one part on its own: whole computers, lots, wanted/trade ads, broken or box-only.

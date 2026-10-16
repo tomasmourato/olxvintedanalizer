@@ -1,10 +1,10 @@
 import { Fragment, useMemo } from "react";
 import { isActive, type Run, type Settings, type Source, type WorkerStatus } from "@dh/shared";
 import { supabase } from "../lib/supabase";
-import { must, useNow, useQuery, useRealtime, useStored } from "../lib/live";
+import { go, must, useNow, useQuery, useRealtime, useStored } from "../lib/live";
 import { scopeLabel } from "../lib/categories";
 import { ago, ms, sourceLabel, when } from "../lib/format";
-import { Badge, Card, Dot, Empty, Loading, Select } from "../components/ui";
+import { Badge, Card, Dot, Empty, Icon, Loading, Select } from "../components/ui";
 
 const LIMIT = 200;
 /** The worker writes a heartbeat every minute. */
@@ -34,6 +34,10 @@ export default function Logs({ worker, settings }: { worker: WorkerStatus | null
 
   return (
     <div className="space-y-4">
+      <button type="button" onClick={() => go("definicoes")} className="-ml-1 inline-flex items-center gap-0.5 text-sm text-neutral-400 hover:text-white">
+        <Icon name="chevronLeft" className="size-4" />
+        Definições
+      </button>
       <WorkerCard worker={worker} settings={settings} now={now} />
       <LastHour runs={runs.data} now={now} />
       <Card title="Pedidos">

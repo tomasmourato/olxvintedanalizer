@@ -30,7 +30,7 @@ const TIERS: { tier: Tier; title: string }[] = [
   { tier: "bom", title: "Bons" },
   { tier: "normal", title: "Resto" },
 ];
-const tierTone: Record<Tier, Tone> = { imperdivel: "invert", bom: "outline", normal: "neutral" };
+export const tierTone: Record<Tier, Tone> = { imperdivel: "invert", bom: "outline", normal: "neutral" };
 
 async function loadDeals(period: Period) {
   const since = new Date(Date.now() - PERIODS[period] * 86_400_000).toISOString();

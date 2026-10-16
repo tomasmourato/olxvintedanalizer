@@ -1,7 +1,6 @@
-import { partWatch, type Watch } from "@dh/shared";
+import { partWatch, singlePart, type Watch } from "@dh/shared";
 import { describe, expect, it } from "vitest";
 import { matchWatches } from "../src/pipeline/match.js";
-import { singlePart } from "../src/pipeline/parts.js";
 import type { ScrapedListing } from "../src/sources/types.js";
 
 // Real titles (listings table, 2026-09-23) plus the neighbours each model must not catch.

@@ -1,7 +1,7 @@
 // New/changed listings → match against watches → (Vinted) enrich → evaluate → matches table → push.
 // A listing no watch matched but whose title names a part type without the model goes through identify():
 // the AI looks for the model in the description; without it, the listing goes to "Por identificar".
-import type { Insert, PcPart, PushPayload, Source, Update, Watch } from "@dh/shared";
+import { hasModelNumber, unnamedTypes, type Insert, type PcPart, type PushPayload, type Source, type Update, type Watch } from "@dh/shared";
 import { getSettings, getWatches } from "../config.js";
 import { db } from "../db.js";
 import { BlockedError, type ScrapedListing } from "../sources/types.js";
@@ -13,7 +13,6 @@ import { askModel } from "./ai.js";
 import { maybeBuy } from "./buy.js";
 import { evaluate } from "./evaluate.js";
 import { matchWatches, unnamedWatches, watchType } from "./match.js";
-import { hasModelNumber, unnamedTypes } from "./parts.js";
 import { aiParts } from "./pc.js";
 import { dealPayload } from "./payload.js";
 import { storeBatch, updateListing, type PriceDrop, type Stored } from "./store.js";

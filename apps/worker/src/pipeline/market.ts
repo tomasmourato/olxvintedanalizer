@@ -1,8 +1,6 @@
 // Pure market-price maths (no DB, so it is testable): used single-part listings → trimmed median per part.
-import type { Source } from "@dh/shared";
-import { singlePart, type Part } from "./parts.js";
+import { hasPhrase, normalize, singlePart, type Part, type Source } from "@dh/shared";
 import { median } from "./score.js";
-import { hasPhrase, normalize } from "./text.js";
 
 const PC_CATEGORIES = new Set([4731, 3581, 4753, 3580]); // computers and laptops (OLX, Vinted)
 const [LOW, HIGH] = [0.4, 2.5]; // outside this × the rough median: box only, broken, typo or new-in-shop

@@ -5,19 +5,43 @@ import { errorText, go, must, useQuery } from "../lib/live";
 import { CATEGORIES, categoryName } from "../lib/categories";
 import { ago, parsePrice, priceText, when } from "../lib/format";
 import { currentEndpoint } from "../lib/push";
-import { Badge, Button, Card, Field, Icon, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
+import { Badge, Button, Card, Dot, Field, Icon, Loading, Message, PickList, TagInput, TextArea, Toggle } from "../components/ui";
 import PushCard from "../components/PushCard";
 import Account from "./Account";
 
-export default function Settings({ settings, email, onSaved }: { settings: SettingsRow | undefined; email: string; onSaved: () => void }) {
+/** online: the worker's state, null while it loads. */
+export default function Settings({ settings, email, online, onSaved }: { settings: SettingsRow | undefined; email: string; online: boolean | null; onSaved: () => void }) {
   const devices = useQuery(loadDevices, []);
   return (
     <div className="space-y-4">
       <PushCard onChange={devices.reload} />
+      <LogsLink online={online} />
       {settings ? <SettingsForm key={settings.updated_at} settings={settings} onSaved={onSaved} /> : <Loading />}
       <Devices q={devices} />
       <Account email={email} />
     </div>
+  );
+}
+
+function LogsLink({ online }: { online: boolean | null }) {
+  return (
+    <a
+      href="#/definicoes/logs"
+      className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 transition-colors hover:border-neutral-600 active:bg-neutral-900"
+    >
+      <Icon name="list" className="size-6 text-neutral-400" />
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold tracking-tight">Logs</p>
+        <p className="text-sm text-neutral-500">Estado do worker, pedidos ao OLX e Vinted e erros.</p>
+      </div>
+      {online != null && (
+        <Badge tone={online ? "ok" : "danger"}>
+          <Dot on={online} />
+          {online ? "Online" : "Offline"}
+        </Badge>
+      )}
+      <Icon name="chevronRight" className="size-4 text-neutral-500" />
+    </a>
   );
 }
 

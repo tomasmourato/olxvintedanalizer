@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pcSystemPrompt, pcUserPrompt } from "../src/pipeline/ai.js";
-import { parseParts } from "../src/pipeline/parts.js";
-import { aiParts, margins, mergeParts, pcVeto, priceParts, rulesParts, valuePc, type PartValue } from "../src/pipeline/pc.js";
+import { margins, parseParts, priceParts, valuePc, type PartValue } from "@dh/shared";
+import { aiParts, mergeParts, pcVeto, rulesParts } from "../src/pipeline/pc.js";
 import { dealPayload } from "../src/pipeline/payload.js";
 
 const values = new Map<string, PartValue>([

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseParts, singlePart } from "../src/pipeline/parts.js";
+import { parseModel, parseParts, singlePart, type PartType } from "@dh/shared";
 
 const key = (title: string) => singlePart(title)?.key ?? null;
 
@@ -88,5 +88,31 @@ describe("parseParts", () => {
     ]);
     expect(parseParts("Placa gráfica 8GB")).toEqual([{ type: "gpu", key: null, label: null }]);
     expect(parseParts("PC gaming i5 com gráfica").map((p) => p.type)).toEqual(["gpu", "cpu"]);
+  });
+});
+
+describe("parseModel (a model typed for a known part type)", () => {
+  const model = (type: PartType, text: string) => parseModel(type, text)?.key ?? null;
+
+  it("reads bare model names with the type's keyword", () => {
+    expect(model("gpu", "3060 ti")).toBe("gpu:rtx-3060-ti");
+    expect(model("gpu", "RX 6600")).toBe("gpu:rx-6600");
+    expect(model("psu", "650W")).toBe("psu:650");
+    expect(model("motherboard", "B450M")).toBe("mb:b450");
+    expect(model("ram", "2x8GB DDR4")).toBe("ram:ddr4-16");
+    expect(model("storage", "SSD 512GB")).toBe("storage:ssd-512");
+  });
+
+  it("takes a bare 4-digit processor number as a Ryzen, Intel ones by their i3/i5/i7/i9", () => {
+    expect(model("cpu", "3600")).toBe("cpu:ryzen-3600");
+    expect(model("cpu", "5600x")).toBe("cpu:ryzen-5600x");
+    expect(model("cpu", "i5 10400f")).toBe("cpu:i5-10400f");
+    expect(model("cpu", "Intel Core i5")).toBeNull();
+  });
+
+  it("ignores other part types and unknown models", () => {
+    expect(model("gpu", "Ryzen 5 3600")).toBeNull();
+    expect(model("storage", "512")).toBeNull();
+    expect(model("gpu", "GT 710")).toBeNull();
   });
 });
